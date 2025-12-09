@@ -269,7 +269,7 @@ def calculate_osno(revenue, total_expenses, insurance, purchases_with_vat_percen
     vat_to_pay = max(vat_charged - vat_deductible, 0)
 
     profit_tax_base = revenue - total_expenses - vat_to_pay
-    profit_tax = max(profit_tax_base, 0) * 0.20
+    profit_tax = max(profit_tax_base, 0) * 0.25
 
     total_tax_burden = profit_tax + vat_to_pay + insurance
     net_profit = revenue - total_expenses - vat_to_pay - profit_tax

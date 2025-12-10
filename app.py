@@ -24,8 +24,8 @@ def _check_ausn_limits(revenue, employees):
 def calculate_ausn_8(revenue, total_expenses, employees):
     """
     АУСН 8% — объект «доходы».
-    Налог = 8% от выручки, взносов нет, НДС нет.
-    total_expenses сюда передаём БЕЗ страховых взносов.
+    Налог = 8% от выручки, страховые взносы (30% и 1%) не платятся, НДС нет.
+    total_expenses сюда передаём БЕЗ страховых взносов и БЕЗ 1% свыше 300 000 ₽.
     """
     if not _check_ausn_limits(revenue, employees):
         return None
@@ -53,8 +53,8 @@ def calculate_ausn_20(revenue, total_expenses, employees):
     """
     АУСН 20% — объект «доходы минус расходы».
     Налог = 20% от (доходы - расходы), но не меньше 3% от доходов.
-    Взносов нет, НДС нет.
-    total_expenses сюда передаём БЕЗ страховых взносов.
+    Страховые взносы (30% и 1%) не платятся, НДС нет.
+    total_expenses сюда передаём БЕЗ страховых взносов и БЕЗ 1% свыше 300 000 ₽.
     """
     if not _check_ausn_limits(revenue, employees):
         return None
@@ -101,6 +101,7 @@ def calculate_ausn_20_monthly(
     - Себестоимость (закупки) распределяем по месяцам по введённым коэффициентам
       (100 — обычный месяц, 200 — в 2 раза больше и т.д.), потом нормализуем
     - Налог за год = сумма помесячных max(20% от (Д-Р), 3% от доходов месяца)
+    - Страховые взносы (30% и 1%) на АУСН не применяются.
     """
     if not _check_ausn_limits(revenue, employees):
         return None
@@ -368,10 +369,25 @@ def index():
                 else:
                     annual_fot = employees * salary * 12
 
-                insurance_standard = annual_fot * 0.30  # Для всех режимов кроме АУСН
+                # Страховые взносы 30% от ФОТ (для УСН/ОСНО)
+                insurance_standard = annual_fot * 0.30
 
-                total_expenses = cost_of_goods + rent + other_expenses + annual_fot + insurance_standard
-                total_expenses_ausn = cost_of_goods + rent + other_expenses + annual_fot  # Для АУСН без взносов
+                # Взнос 1% с доходов свыше 300 000 ₽ — только для не-АУСН режимов
+                owner_extra_1p = max(0.0, revenue - 300_000) * 0.01
+
+                # Общие расходы (без налогов) для УСН/ОСНО:
+                # включаем и 30% от ФОТ, и 1% (они уменьшают прибыль)
+                total_expenses = (
+                    cost_of_goods
+                    + rent
+                    + other_expenses
+                    + annual_fot
+                    + insurance_standard
+                    + owner_extra_1p
+                )
+
+                # Для АУСН расходы без страховых взносов и без 1%
+                total_expenses_ausn = cost_of_goods + rent + other_expenses + annual_fot
 
                 # Базовые компоненты для пояснений
                 components = {
@@ -380,20 +396,21 @@ def index():
                     'other_expenses': other_expenses,
                     'annual_fot': annual_fot,
                     'insurance_standard': insurance_standard,
+                    'owner_extra_1p': owner_extra_1p,
                     'vat_purchases_percent': vat_purchases_percent,
                 }
 
                 # ---- Расчёт режимов ----
                 results = []
 
-                # АУСН 8%
+                # АУСН 8% (без 30% взносов и без 1%)
                 ausn_8 = calculate_ausn_8(revenue, total_expenses_ausn, employees)
                 if ausn_8:
                     results.append(('АУСН 8%', ausn_8, True))
                 else:
                     results.append(('АУСН 8% (нельзя применять — превышены лимиты)', None, False))
 
-                # АУСН 20% (помесячный)
+                # АУСН 20% (помесячный, тоже без взносов и без 1%)
                 ausn_20 = calculate_ausn_20_monthly(
                     revenue=revenue,
                     cost_of_goods=cost_of_goods,
@@ -408,18 +425,19 @@ def index():
                 else:
                     results.append(('АУСН 20% (нельзя применять — превышены лимиты)', None, False))
 
-                # УСН для общепита без НДС
-                usn_income_no_vat = calculate_usn_income_no_vat(revenue, total_expenses, insurance_standard)
-                results.append(('УСН Доходы 6% (общепит)', usn_income_no_vat, True))
+                # УСН для общепита без НДС (сюда входят 30% ФОТ + 1% сверх 300k)
+                insurance_total = insurance_standard + owner_extra_1p
+                usn_income_no_vat = calculate_usn_income_no_vat(revenue, total_expenses, insurance_total)
+                results.append(('УСН Доходы 6%', usn_income_no_vat, True))
 
-                usn_dr_no_vat = calculate_usn_dr_no_vat(revenue, total_expenses, insurance_standard)
-                results.append(('УСН Д-Р 15% (общепит)', usn_dr_no_vat, True))
+                usn_dr_no_vat = calculate_usn_dr_no_vat(revenue, total_expenses, insurance_total)
+                results.append(('УСН Д-Р 15%', usn_dr_no_vat, True))
 
                 # УСН + НДС 5%
                 usn_income_5 = calculate_usn_income(
                     revenue,
                     total_expenses,
-                    insurance_standard,
+                    insurance_total,
                     5,
                     vat_purchases_percent,
                     cost_of_goods,
@@ -429,29 +447,29 @@ def index():
                 usn_dr_5 = calculate_usn_income_minus_expenses(
                     revenue,
                     total_expenses,
-                    insurance_standard,
+                    insurance_total,
                     5,
                     vat_purchases_percent,
                     cost_of_goods,
                 )
                 results.append(('УСН Д-Р 15% + НДС 5%', usn_dr_5, True))
 
-                # УСН Д-Р 15% + НДС 22%
+                # УСН Д-Р 15% + НДС 22% (1% тоже включён)
                 usn_dr_22 = calculate_usn_income_minus_expenses(
                     revenue,
                     total_expenses,
-                    insurance_standard,
+                    insurance_total,
                     22,
                     vat_purchases_percent,
                     cost_of_goods,
                 )
                 results.append(('УСН Д-Р 15% + НДС 22%', usn_dr_22, True))
 
-                # ОСНО + НДС 22%
+                # ОСНО + НДС 22% (1% тоже включён)
                 osno = calculate_osno(
                     revenue,
                     total_expenses,
-                    insurance_standard,
+                    insurance_total,
                     vat_purchases_percent,
                     cost_of_goods,
                 )

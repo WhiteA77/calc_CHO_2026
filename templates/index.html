@@ -555,6 +555,7 @@
                     data-other-expenses="{{ components.other_expenses or 0 }}"
                     data-annual-fot="{{ components.annual_fot or 0 }}"
                     data-insurance-standard="{{ components.insurance_standard or 0 }}"
+                    data-owner-extra-1p="{{ components.owner_extra_1p or 0 }}"
                     data-vat-purchases-percent="{{ components.vat_purchases_percent or 0 }}">
 
                     <thead>
@@ -617,7 +618,8 @@
             </div>
 
             <p style="margin-top: 20px; color: #808080; font-size: 13px;">
-                * Страховые взносы рассчитаны как 30% от ФОТ для всех режимов, кроме АУСН (0%).<br>
+                * Для режимов УСН и ОСНО страховые взносы включают 30% от ФОТ и, при выручке свыше 300 000 ₽,
+                  1% с доходов ИП сверх этой суммы. На АУСН 8% и АУСН 20% эти взносы в расчёт не включаются (0 ₽).<br>
                 * АУСН доступен только при выручке до 60 млн ₽ в год и до 5 сотрудников.
             </p>
         </div>
@@ -758,8 +760,6 @@
                 updateFotFromStaff();
             } else {
                 fotAnnualInput.removeAttribute('readonly');
-                // если хочешь, можно делать поля сотрудников readonly,
-                // но в расчётах всё равно будет использоваться только fot_annual
                 empInput.removeAttribute('readonly');
                 salaryInput.removeAttribute('readonly');
             }
@@ -794,11 +794,6 @@
             return num.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
         }
 
-        function fmtMoneyFull(value) {
-            const num = Number(value) || 0;
-            return num.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-        }
-
         function fmtPercent(value) {
             const num = Number(value) || 0;
             return num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -824,26 +819,26 @@
 
             const lines = [];
 
-            // 1. Общее словесное описание режима
+            // 1. Общее описание режима
             if (regime.includes('АУСН 8')) {
-                lines.push('<p><strong>Как считается налог:</strong> 8% от выручки. Страховые взносы на АУСН не платятся, НДС нет.</p>');
+                lines.push('<p><strong>Как считается налог:</strong> 8% от выручки. Страховые взносы и взнос 1% с доходов свыше 300 000 ₽ на АУСН не платятся, НДС нет.</p>');
             } else if (regime.includes('АУСН 20')) {
-                lines.push('<p><strong>Как считается налог:</strong> помесячно: для каждого месяца налог = max(20% от (доходы − расходы), 3% от доходов месяца). В таблице показана сумма этих налогов за год.</p>');
+                lines.push('<p><strong>Как считается налог:</strong> помесячно: для каждого месяца налог = max(20% от (доходы − расходы), 3% от доходов месяца). Страховые взносы и взнос 1% с доходов свыше 300 000 ₽ на АУСН не платятся. В таблице показана сумма этих налогов за год.</p>');
             } else if (isUsnIncomeNoVat) {
-                lines.push('<p><strong>Как считается налог:</strong> 6% от выручки. НДС не применяется (льгота для общепита). Страховые взносы считаются отдельно.</p>');
+                lines.push('<p><strong>Как считается налог:</strong> 6% от выручки. НДС не применяется (льгота для общепита). Страховые взносы учитывают 30% от ФОТ и 1% с доходов свыше 300 000 ₽.</p>');
             } else if (isUsnDrNoVat) {
-                lines.push('<p><strong>Как считается налог:</strong> 15% от положительной разницы «доходы − расходы». НДС не применяется (льгота для общепита). Страховые взносы считаются отдельно.</p>');
+                lines.push('<p><strong>Как считается налог:</strong> 15% от положительной разницы «доходы − расходы». НДС не применяется (льгота для общепита). Страховые взносы учитывают 30% от ФОТ и 1% с доходов свыше 300 000 ₽.</p>');
             } else if (isUsnIncome5) {
-                lines.push('<p><strong>Как считается налог:</strong> УСН 6% от выручки + НДС 5% к начислению с выручки (без вычетов по закупкам) + страховые взносы.</p>');
+                lines.push('<p><strong>Как считается налог:</strong> УСН 6% от выручки + НДС 5% с выручки (без вычетов) + страховые взносы (30% от ФОТ и 1% с доходов свыше 300 000 ₽).</p>');
             } else if (isUsnDr5) {
-                lines.push('<p><strong>Как считается налог:</strong> УСН 15% с прибыли (доходы − расходы) + НДС 5% с выручки (без вычетов) + страховые взносы.</p>');
+                lines.push('<p><strong>Как считается налог:</strong> УСН 15% с прибыли (доходы − расходы) + НДС 5% с выручки (без вычетов) + страховые взносы (30% от ФОТ и 1% с доходов свыше 300 000 ₽).</p>');
             } else if (isUsnDr22) {
-                lines.push('<p><strong>Как считается налог:</strong> УСН 15% с прибыли (доходы − расходы) + НДС 22%: налог к начислению с выручки минус НДС по закупкам + страховые взносы.</p>');
+                lines.push('<p><strong>Как считается налог:</strong> УСН 15% с прибыли (доходы − расходы) + НДС 22%: налог к начислению с выручки минус НДС по закупкам + страховые взносы (30% от ФОТ и 1% с доходов свыше 300 000 ₽).</p>');
             } else if (isOsno) {
-                lines.push('<p><strong>Как считается налог:</strong> НДС 22% (к начислению с выручки минус НДС по закупкам) + налог на прибыль 25% с прибыли после учёта расходов и НДС + страховые взносы.</p>');
+                lines.push('<p><strong>Как считается налог:</strong> НДС 22% (к начислению с выручки минус НДС по закупкам) + налог на прибыль 25% с прибыли после учёта расходов и НДС + страховые взносы (30% от ФОТ и 1% с доходов свыше 300 000 ₽).</p>');
             }
 
-            // 2. Расходы — расшифровка
+            // 2. Расходы
             let expenseParts;
             if (isAusn) {
                 expenseParts =
@@ -852,12 +847,15 @@
                     `${fmtMoney(baseOther)} ₽ (прочие) + ` +
                     `${fmtMoney(baseFot)} ₽ (ФОТ)`;
             } else {
+                // 1% считаем как разницу между общими взносами и 30% ФОТ
+                const owner1p = Math.max(0, insurance - baseInsurStd);
                 expenseParts =
                     `${fmtMoney(baseCost)} ₽ (себестоимость) + ` +
                     `${fmtMoney(baseRent)} ₽ (аренда) + ` +
                     `${fmtMoney(baseOther)} ₽ (прочие) + ` +
                     `${fmtMoney(baseFot)} ₽ (ФОТ) + ` +
-                    `${fmtMoney(baseInsurStd)} ₽ (страховые взносы)`;
+                    `${fmtMoney(baseInsurStd)} ₽ (страховые взносы 30% от ФОТ) + ` +
+                    `${fmtMoney(owner1p)} ₽ (взнос 1% с доходов свыше 300 000 ₽)`;
             }
 
             lines.push(
@@ -865,15 +863,11 @@
                 `<p><strong>Расходы (без налогов):</strong> ${fmtMoney(expenses)} ₽ = ${expenseParts}</p>`
             );
 
-            // 3. Налог по режиму (УСН / АУСН / налог на прибыль)
+            // 3. Налог по режиму
             if (regime.includes('АУСН 8')) {
-                lines.push(
-                    `<p><strong>Налог по режиму:</strong> 8% от выручки = ${fmtMoney(revenue)} × 8% = ${fmtMoney(tax)} ₽</p>`
-                );
+                lines.push(`<p><strong>Налог по режиму:</strong> 8% от выручки = ${fmtMoney(revenue)} × 8% = ${fmtMoney(tax)} ₽</p>`);
             } else if (isUsnIncomeNoVat || isUsnIncome5) {
-                lines.push(
-                    `<p><strong>Налог по режиму:</strong> 6% от выручки = ${fmtMoney(revenue)} × 6% = ${fmtMoney(tax)} ₽</p>`
-                );
+                lines.push(`<p><strong>Налог по режиму:</strong> 6% от выручки = ${fmtMoney(revenue)} × 6% = ${fmtMoney(tax)} ₽</p>`);
             } else if (isUsnDrNoVat || isUsnDr5 || isUsnDr22) {
                 const base = revenue - expenses;
                 lines.push(
@@ -882,22 +876,17 @@
                     `налог = max(0, база) × 15% = ${fmtMoney(tax)} ₽</p>`
                 );
             } else if (regime.includes('АУСН 20')) {
-                lines.push(
-                    `<p><strong>Налог по режиму:</strong> сумма помесячных налогов: max(20% × (доходы − расходы), 3% × доходов месяца) по каждому месяцу. В год получается ${fmtMoney(tax)} ₽.</p>`
-                );
+                lines.push(`<p><strong>Налог по режиму:</strong> сумма помесячных налогов: max(20% × (доходы − расходы), 3% × доходов месяца) по каждому месяцу. В год получается ${fmtMoney(tax)} ₽.</p>`);
             } else if (isOsno) {
                 lines.push(
                     `<p><strong>Налог по режиму (налог на прибыль):</strong> 25% с прибыли после учёта расходов и НДС. ` +
                     `В таблице показана сумма налога на прибыль за год: ${fmtMoney(tax)} ₽.</p>`
                 );
             } else {
-                // запасной вариант
-                lines.push(
-                    `<p><strong>Налог по режиму:</strong> ${fmtMoney(tax)} ₽</p>`
-                );
+                lines.push(`<p><strong>Налог по режиму:</strong> ${fmtMoney(tax)} ₽</p>`);
             }
 
-            // 4. НДС — формула с разложением
+            // 4. НДС
             if (isUsnIncome5 || isUsnDr5) {
                 const vatRate = 5;
                 const vatCharged = revenue * vatRate / (100 + vatRate);
@@ -918,20 +907,29 @@
                 );
             } else if (regime.includes('АУСН')) {
                 lines.push('<p><strong>НДС:</strong> при АУСН НДС не уплачивается.</p>');
-            } else {
-                // режимы без НДС
-                if (!vat || vat === 0) {
-                    lines.push('<p><strong>НДС:</strong> в этом режиме НДС не начисляется.</p>');
-                }
+            } else if (!vat || vat === 0) {
+                lines.push('<p><strong>НДС:</strong> в этом режиме НДС не начисляется.</p>');
             }
 
-            // 5. Страховые взносы — формула
-            if (insurance > 0) {
-                lines.push(
-                    `<p><strong>Страховые взносы:</strong> 30% от ФОТ = ${fmtMoney(baseFot)} ₽ × 30% = ${fmtMoney(insurance)} ₽.</p>`
-                );
+            // 5. Страховые взносы
+            if (isAusn) {
+                lines.push('<p><strong>Страховые взносы:</strong> на АУСН страховые взносы 30% от ФОТ и взнос 1% с доходов свыше 300 000 ₽ не уплачиваются и в расчётах не учитываются.</p>');
+            } else if (insurance > 0) {
+                const owner1p = Math.max(0, insurance - baseInsurStd);
+                if (owner1p > 0) {
+                    lines.push(
+                        `<p><strong>Страховые взносы:</strong> 30% от ФОТ = ${fmtMoney(baseFot)} ₽ × 30% = ${fmtMoney(baseInsurStd)} ₽; ` +
+                        `1% с доходов свыше 300 000 ₽ = max(0, ${fmtMoney(revenue)} − 300 000 ₽) × 1% ≈ ${fmtMoney(owner1p)} ₽; ` +
+                        `итого страховые взносы = ${fmtMoney(baseInsurStd)} + ${fmtMoney(owner1p)} = ${fmtMoney(insurance)} ₽.</p>`
+                    );
+                } else {
+                    lines.push(
+                        `<p><strong>Страховые взносы:</strong> 30% от ФОТ = ${fmtMoney(baseFot)} ₽ × 30% = ${fmtMoney(insurance)} ₽; ` +
+                        `1% с доходов свыше 300 000 ₽ не взимается, так как доходы, учитываемые для 1%, не превышают 300 000 ₽.</p>`
+                    );
+                }
             } else {
-                lines.push('<p><strong>Страховые взносы:</strong> в этом режиме (АУСН) страховые взносы ИП за сотрудников не уплачиваются.</p>');
+                lines.push('<p><strong>Страховые взносы:</strong> не начисляются (ФОТ = 0 и доход ≤ 300 000 ₽).</p>');
             }
 
             // 6. Налоговая нагрузка и чистая прибыль
@@ -952,7 +950,6 @@
         function toggleDetails(row) {
             const next = row.nextElementSibling;
             if (next && next.classList.contains('details-row')) {
-                // уже раскрыто — свернуть
                 next.remove();
                 return;
             }
@@ -974,7 +971,7 @@
             detailsRow.className = 'details-row';
 
             const cell = document.createElement('td');
-            cell.colSpan = 9; // 1 колонка с названием + 8 числовых
+            cell.colSpan = 9;
             const box = document.createElement('div');
             box.className = 'details-box';
 
@@ -1000,5 +997,6 @@
         });
     });
     </script>
+
 </body>
 </html>

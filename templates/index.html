@@ -327,6 +327,18 @@
                                value="{{ form_data.rent if form_data else '0' }}">
                     </div>
 
+                    <div class="form-group">
+                        <label for="accumulated_vat_credit">Накопленный НДС к вычету за прошлые периоды, ₽</label>
+                        <input
+                            type="number"
+                            id="accumulated_vat_credit"
+                            name="accumulated_vat_credit"
+                            step="0.01"
+                            min="0"
+                            value="{{ form_data.accumulated_vat_credit if form_data else '0' }}"
+                        >
+                    </div>
+
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>Прочие расходы</label>
 
@@ -720,8 +732,8 @@
             const netProfit    = data.netProfit;
 
             const isAusn = regime.includes('АУСН');
-            const isUsnIncomeNoVat = regime.includes('УСН Доходы 6% (общепит)');
-            const isUsnDrNoVat = regime.includes('УСН Д-Р 15% (общепит)');
+            const isUsnIncomeNoVat = regime.includes('УСН Доходы 6% (общепит)') || regime === 'УСН Доходы 6%';
+            const isUsnDrNoVat = regime.includes('УСН Д-Р 15% (общепит)') || regime === 'УСН Д-Р 15%';
             const isUsnIncome5 = regime.includes('УСН Доходы 6% + НДС 5%');
             const isUsnDr5 = regime.includes('УСН Д-Р 15% + НДС 5%');
             const isUsnDr22 = regime.includes('УСН Д-Р 15% + НДС 22%');
@@ -792,7 +804,7 @@
                 );
             } else if (isOsno) {
                 lines.push(
-                    `<p><strong>Налог по режиму (налог на прибыль):</strong> 20% с прибыли после учёта расходов и НДС. ` +
+                    `<p><strong>Налог по режиму (налог на прибыль):</strong> 25% с прибыли после учёта расходов и НДС. ` +
                     `В таблице показана сумма налога на прибыль за год: ${fmtMoney(tax)} ₽.</p>`
                 );
             } else {
@@ -905,8 +917,5 @@
         });
     });
     </script>
-
-
-
 </body>
 </html>

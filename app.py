@@ -159,11 +159,15 @@ def calculate_ausn_20_monthly(
 
 def calculate_usn_income(revenue, total_expenses, insurance, vat_rate, purchases_with_vat_percent, cost_of_goods):
     """Расчёт для УСН Доходы 6% + НДС"""
+    # Налог УСН
     usn_tax = revenue * 0.06
 
+    # НДС
     vat_charged = revenue * vat_rate / (100 + vat_rate)
 
+    # Входящий НДС к вычету
     if vat_rate == 5:
+        # Для льготного НДС 5% вычет не применяем вообще
         vat_deductible = 0
     else:
         purchases_base = cost_of_goods * purchases_with_vat_percent / 100
@@ -186,20 +190,35 @@ def calculate_usn_income(revenue, total_expenses, insurance, vat_rate, purchases
     }
 
 
-def calculate_usn_income_minus_expenses(revenue, total_expenses, insurance, vat_rate, purchases_with_vat_percent, cost_of_goods):
+def calculate_usn_income_minus_expenses(
+    revenue,
+    total_expenses,
+    insurance,
+    vat_rate,
+    purchases_with_vat_percent,
+    cost_of_goods,
+    accumulated_vat_credit=0.0,
+):
     """Расчёт для УСН Доходы минус расходы 15% + НДС"""
+    # Налоговая база УСН
     usn_base = revenue - total_expenses
     usn_tax = max(usn_base, 0) * 0.15
 
+    # НДС к начислению
     vat_charged = revenue * vat_rate / (100 + vat_rate)
 
+    # Входящий НДС + накопленный НДС прошлых лет (только при ставке 22%)
     if vat_rate == 5:
+        # При льготной ставке 5% ни вычет по закупкам, ни накопленный НДС не применяются
         vat_deductible = 0
+        extra_credit = 0.0
     else:
         purchases_base = cost_of_goods * purchases_with_vat_percent / 100
         vat_deductible = purchases_base * vat_rate / (100 + vat_rate)
+        extra_credit = accumulated_vat_credit
 
-    vat_to_pay = max(vat_charged - vat_deductible, 0)
+    vat_to_pay_raw = vat_charged - vat_deductible - extra_credit
+    vat_to_pay = max(vat_to_pay_raw, 0)
 
     total_tax_burden = usn_tax + vat_to_pay + insurance
     net_profit = revenue - total_expenses - usn_tax - vat_to_pay
@@ -257,17 +276,29 @@ def calculate_usn_dr_no_vat(revenue, total_expenses, insurance):
     }
 
 
-def calculate_osno(revenue, total_expenses, insurance, purchases_with_vat_percent, cost_of_goods):
+def calculate_osno(
+    revenue,
+    total_expenses,
+    insurance,
+    purchases_with_vat_percent,
+    cost_of_goods,
+    accumulated_vat_credit=0.0,
+):
     """Расчёт для ОСНО с НДС 22%"""
     vat_rate = 22
 
+    # НДС к начислению
     vat_charged = revenue * vat_rate / (100 + vat_rate)
 
+    # Входящий НДС по текущим закупкам
     purchases_base = cost_of_goods * purchases_with_vat_percent / 100
     vat_deductible = purchases_base * vat_rate / (100 + vat_rate)
 
-    vat_to_pay = max(vat_charged - vat_deductible, 0)
+    # Учитываем накопленный НДС прошлых лет
+    vat_to_pay_raw = vat_charged - vat_deductible - accumulated_vat_credit
+    vat_to_pay = max(vat_to_pay_raw, 0)
 
+    # Налог на прибыль (упрощённо: 25% с базы после вычета расходов и НДС)
     profit_tax_base = revenue - total_expenses - vat_to_pay
     profit_tax = max(profit_tax_base, 0) * 0.25
 
@@ -308,6 +339,9 @@ def index():
             other_percent = float(request.form.get('other_percent', 0))
             other_amount = float(request.form.get('other_amount', 0))
 
+            # Накопленный НДС к вычету за прошлые периоды (для ОСНО и УСН Д-Р 15% + НДС 22%)
+            accumulated_vat_credit = float(request.form.get('accumulated_vat_credit', 0))
+
             # Проценты/коэффициенты распределения закупок по месяцам
             purchases_month_percents = []
             for key in MONTH_KEYS:
@@ -325,6 +359,7 @@ def index():
                 or salary < 0
                 or other_percent < 0
                 or other_amount < 0
+                or accumulated_vat_credit < 0
                 or any(p < 0 for p in purchases_month_percents)
             ):
                 error = "Все значения должны быть неотрицательными"
@@ -355,7 +390,6 @@ def index():
                     'insurance_standard': insurance_standard,
                     'vat_purchases_percent': vat_purchases_percent,
                 }
-
 
                 # Расчёт для каждого режима
                 results = []
@@ -390,27 +424,49 @@ def index():
                 usn_dr_no_vat = calculate_usn_dr_no_vat(revenue, total_expenses, insurance_standard)
                 results.append(('УСН Д-Р 15%', usn_dr_no_vat, True))
 
-                # УСН Доходы 6% + НДС 5%
+                # УСН Доходы 6% + НДС 5% (льготный НДС, накопленный НДС не учитываем)
                 usn_income_5 = calculate_usn_income(
-                    revenue, total_expenses, insurance_standard, 5, vat_purchases_percent, cost_of_goods
+                    revenue,
+                    total_expenses,
+                    insurance_standard,
+                    5,
+                    vat_purchases_percent,
+                    cost_of_goods,
                 )
                 results.append(('УСН Доходы 6% + НДС 5%', usn_income_5, True))
 
-                # УСН Д-Р 15% + НДС 5%
+                # УСН Д-Р 15% + НДС 5% (льготный НДС, накопленный НДС не учитываем)
                 usn_dr_5 = calculate_usn_income_minus_expenses(
-                    revenue, total_expenses, insurance_standard, 5, vat_purchases_percent, cost_of_goods
+                    revenue,
+                    total_expenses,
+                    insurance_standard,
+                    5,
+                    vat_purchases_percent,
+                    cost_of_goods,
+                    0.0,
                 )
                 results.append(('УСН Д-Р 15% + НДС 5%', usn_dr_5, True))
 
-                # УСН Д-Р 15% + НДС 22%
+                # УСН Д-Р 15% + НДС 22% (можно учесть накопленный НДС)
                 usn_dr_22 = calculate_usn_income_minus_expenses(
-                    revenue, total_expenses, insurance_standard, 22, vat_purchases_percent, cost_of_goods
+                    revenue,
+                    total_expenses,
+                    insurance_standard,
+                    22,
+                    vat_purchases_percent,
+                    cost_of_goods,
+                    accumulated_vat_credit,
                 )
                 results.append(('УСН Д-Р 15% + НДС 22%', usn_dr_22, True))
 
-                # ОСНО + НДС 22%
+                # ОСНО + НДС 22% (можно учесть накопленный НДС)
                 osno = calculate_osno(
-                    revenue, total_expenses, insurance_standard, vat_purchases_percent, cost_of_goods
+                    revenue,
+                    total_expenses,
+                    insurance_standard,
+                    vat_purchases_percent,
+                    cost_of_goods,
+                    accumulated_vat_credit,
                 )
                 results.append(('ОСНО + НДС 22%', osno, True))
 
@@ -432,6 +488,7 @@ def index():
                 'other_mode': other_mode,
                 'other_percent': other_percent,
                 'other_amount': other_amount,
+                'accumulated_vat_credit': accumulated_vat_credit,
             }
             for key, value in zip(MONTH_KEYS, purchases_month_percents):
                 form_data[f'purchases_{key}'] = value

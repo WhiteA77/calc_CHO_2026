@@ -375,18 +375,48 @@
                     <div class="fot-group">
                         <div class="fot-label">Фонд оплаты труда (ФОТ)</div>
 
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label>Способ задания ФОТ</label>
+                            <div style="margin-top: 4px; margin-bottom: 12px;">
+                                <label style="margin-right: 20px;">
+                                    <input type="radio" name="fot_mode" value="staff"
+                                        {% if form_data.fot_mode != 'annual' %}checked{% endif %}>
+                                    По сотрудникам (количество × оклад)
+                                </label>
+                                <label>
+                                    <input type="radio" name="fot_mode" value="annual"
+                                        {% if form_data.fot_mode == 'annual' %}checked{% endif %}>
+                                    ФОТ суммой за год
+                                </label>
+                            </div>
+                        </div>
+
                         <div class="form-group">
                             <label for="employees">Количество сотрудников</label>
                             <input type="number" id="employees" name="employees" min="0" step="1"
-                                   value="{{ form_data.employees if form_data else '0' }}">
+                                value="{{ form_data.employees if form_data else '0' }}">
                         </div>
 
                         <div class="form-group">
                             <label for="salary">Оклад одного сотрудника в месяц, ₽</label>
                             <input type="number" id="salary" name="salary" step="0.01"
-                                   value="{{ form_data.salary if form_data else '0' }}">
+                                value="{{ form_data.salary if form_data else '0' }}">
                         </div>
+
+                        <div class="form-group">
+                            <label for="fot_annual">ФОТ за год, ₽</label>
+                            <input type="number" id="fot_annual" name="fot_annual" step="0.01" min="0"
+                                value="{{ form_data.fot_annual if form_data else '' }}">
+                        </div>
+
+                        <p class="month-help" style="grid-column: 1 / -1; margin-top: 4px;">
+                            В режиме «по сотрудникам» ФОТ за год считается как:
+                            <strong>количество сотрудников × оклад × 12</strong> и подставляется автоматически.
+                            В режиме «ФОТ суммой за год» используется только введённая сумма — поля сотрудников и оклады
+                            на расчёт не влияют.
+                        </p>
                     </div>
+
 
                     <div class="fot-group">
                         <div class="fot-label">
@@ -691,6 +721,59 @@
         refreshMode();
     });
     </script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const empInput = document.getElementById('employees');
+        const salaryInput = document.getElementById('salary');
+        const fotAnnualInput = document.getElementById('fot_annual');
+        const fotModeInputs = document.getElementsByName('fot_mode');
+
+        if (!empInput || !salaryInput || !fotAnnualInput || !fotModeInputs.length) {
+            return;
+        }
+
+        function getFotMode() {
+            const checked = Array.from(fotModeInputs).find(r => r.checked);
+            return checked ? checked.value : 'staff';
+        }
+
+        function updateFotFromStaff() {
+            const mode = getFotMode();
+            if (mode !== 'staff') {
+                return;
+            }
+            const emp = parseFloat(empInput.value) || 0;
+            const sal = parseFloat(salaryInput.value) || 0;
+            const annual = emp * sal * 12;
+            fotAnnualInput.value = annual ? annual.toFixed(2) : '0.00';
+        }
+
+        function refreshFotMode() {
+            const mode = getFotMode();
+            if (mode === 'staff') {
+                empInput.removeAttribute('readonly');
+                salaryInput.removeAttribute('readonly');
+                fotAnnualInput.setAttribute('readonly', true);
+                updateFotFromStaff();
+            } else {
+                fotAnnualInput.removeAttribute('readonly');
+                // если хочешь, можно делать поля сотрудников readonly,
+                // но в расчётах всё равно будет использоваться только fot_annual
+                empInput.removeAttribute('readonly');
+                salaryInput.removeAttribute('readonly');
+            }
+        }
+
+        empInput.addEventListener('input', updateFotFromStaff);
+        salaryInput.addEventListener('input', updateFotFromStaff);
+        Array.from(fotModeInputs).forEach(r => r.addEventListener('change', refreshFotMode));
+
+        // начальная настройка
+        refreshFotMode();
+    });
+    </script>
+
 
     <script>
     document.addEventListener('DOMContentLoaded', function () {

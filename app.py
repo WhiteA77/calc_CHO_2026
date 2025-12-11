@@ -183,12 +183,17 @@ def calculate_usn_income(
     revenue,
     total_expenses,
     insurance,
+    insurance_standard,
     vat_rate,
     purchases_with_vat_percent,
     cost_of_goods,
 ):
     """Расчёт для УСН Доходы 6% + НДС"""
-    usn_tax = revenue * 0.06
+    tax_initial = revenue * 0.06
+    reduction_base = insurance_standard
+    max_reduction = tax_initial * 0.50
+    tax_reduction = min(reduction_base, max_reduction)
+    usn_tax = tax_initial - tax_reduction
 
     vat_charged = revenue * vat_rate / (100 + vat_rate)
 
@@ -214,6 +219,10 @@ def calculate_usn_income(
         'total_burden': total_tax_burden,
         'burden_percent': (total_tax_burden / revenue * 100) if revenue > 0 else 0,
         'net_profit': net_profit,
+        'tax_initial': tax_initial,
+        'tax_reduction': tax_reduction,
+        'tax_reduction_limit': max_reduction,
+        'tax_reduction_base': reduction_base,
     }
 
 
@@ -265,9 +274,13 @@ def calculate_usn_income_minus_expenses(
     }
 
 
-def calculate_usn_income_no_vat(revenue, total_expenses, insurance):
+def calculate_usn_income_no_vat(revenue, total_expenses, insurance, insurance_standard):
     """УСН Доходы 6% без НДС (для общепита)"""
-    usn_tax = revenue * 0.06
+    tax_initial = revenue * 0.06
+    reduction_base = insurance_standard
+    max_reduction = tax_initial * 0.50
+    tax_reduction = min(reduction_base, max_reduction)
+    usn_tax = tax_initial - tax_reduction
     vat_to_pay = 0
 
     total_tax_burden = usn_tax + vat_to_pay + insurance
@@ -282,6 +295,10 @@ def calculate_usn_income_no_vat(revenue, total_expenses, insurance):
         'total_burden': total_tax_burden,
         'burden_percent': (total_tax_burden / revenue * 100) if revenue > 0 else 0,
         'net_profit': net_profit,
+        'tax_initial': tax_initial,
+        'tax_reduction': tax_reduction,
+        'tax_reduction_limit': max_reduction,
+        'tax_reduction_base': reduction_base,
     }
 
 
@@ -510,7 +527,10 @@ def index():
                 # УСН Доходы 6% (без НДС) — остатки не учитываются
                 insurance_total_income = insurance_standard + owner_extra_income
                 usn_income_no_vat = calculate_usn_income_no_vat(
-                    revenue, total_expenses_income_regime, insurance_total_income
+                    revenue,
+                    total_expenses_income_regime,
+                    insurance_total_income,
+                    insurance_standard,
                 )
                 if usn_income_no_vat:
                     usn_income_no_vat['owner_extra'] = owner_extra_income
@@ -522,6 +542,7 @@ def index():
                     revenue,
                     total_expenses_income_regime,
                     insurance_total_income,
+                    insurance_standard,
                     5,
                     vat_purchases_percent,
                     cost_of_goods,

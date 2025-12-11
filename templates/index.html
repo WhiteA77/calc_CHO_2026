@@ -647,6 +647,9 @@
                                 data-owner-extra-base="{{ data.owner_extra_base or 0 }}"
                                 data-usn-regular-tax="{{ data.usn_regular_tax or 0 }}"
                                 data-usn-min-tax="{{ data.usn_min_tax or 0 }}"
+                                data-tax-initial="{{ data.tax_initial or 0 }}"
+                                data-tax-reduction="{{ data.tax_reduction or 0 }}"
+                                data-tax-reduction-limit="{{ data.tax_reduction_limit or 0 }}"
                             {% endif %}
                         >
                             <td class="regime-name {% if not is_available %}unavailable{% endif %}">
@@ -1049,6 +1052,9 @@
             const revenue = params.revenue || 0;
             const expenses = params.expenses || 0;
             const tax = params.tax || 0;
+            const taxInitial = params.taxInitial || revenue * 0.06;
+            const taxReduction = params.taxReduction || 0;
+            const taxReductionLimit = params.taxReductionLimit || (taxInitial * 0.50);
             const insurance = params.insurance || 0;
             const totalBurden = params.totalBurden || 0;
             const burdenPct = params.burdenPct || 0;
@@ -1063,6 +1069,7 @@
             const burdenPercentText = fmtPercent(burdenPct);
             const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
             const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
+            const reductionLimited = baseInsurStd >= taxReductionLimit && Math.abs(taxReduction - taxReductionLimit) <= 0.01;
 
             const lines = [
                 '# Пояснение к расчёту налоговой нагрузки (УСН Доходы 6%)',
@@ -1090,8 +1097,34 @@
                 `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
                 '',
                 '## 4. Расчёт налога УСН 6%',
-                'Налог по УСН 6%:',
-                `${fmtMoney(revenue)} × 6% = ${fmtMoney(tax)} ₽.`,
+                'Налог без уменьшения:',
+                `${fmtMoney(revenue)} × 6% = ${fmtMoney(taxInitial)} ₽.`,
+                '',
+                'Сумма страховых взносов, участвующая в уменьшении налога (30% от ФОТ):',
+                `${fmtMoney(baseInsurStd)} ₽.`,
+                '',
+                'Максимальное уменьшение (не более 50% от начисленного налога):',
+                `${fmtMoney(taxInitial)} ₽ × 50% = ${fmtMoney(taxReductionLimit)} ₽.`,
+            ];
+
+            if (reductionLimited) {
+                lines.push(
+                    '',
+                    'Фактическое уменьшение налога:',
+                    `так как сумма страховых взносов (30% от ФОТ) = ${fmtMoney(baseInsurStd)} ₽ превышает или равна максимальному допустимому уменьшению (${fmtMoney(taxReductionLimit)} ₽), налог может быть уменьшен только на ${fmtMoney(taxReduction)} ₽.`
+                );
+            } else {
+                lines.push(
+                    '',
+                    'Фактическое уменьшение налога:',
+                    `так как сумма страховых взносов (30% от ФОТ) = ${fmtMoney(baseInsurStd)} ₽ меньше максимального допустимого уменьшения (${fmtMoney(taxReductionLimit)} ₽), налог уменьшается на ${fmtMoney(taxReduction)} ₽.`
+                );
+            }
+
+            lines.push(
+                '',
+                'Налог к уплате по УСН 6%:',
+                `${fmtMoney(taxInitial)} ₽ − ${fmtMoney(taxReduction)} ₽ = ${fmtMoney(tax)} ₽.`,
                 '',
                 '## 5. Страховые взносы',
                 '30% от ФОТ:',
@@ -1116,7 +1149,7 @@
                 '',
                 'Расчёт:',
                 `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} = ${fmtMoney(netProfit)} ₽.`,
-            ];
+            );
 
             return renderMarkdown(lines);
         }
@@ -1125,6 +1158,9 @@
             const revenue = params.revenue || 0;
             const expenses = params.expenses || 0;
             const tax = params.tax || 0;
+            const taxInitial = params.taxInitial || revenue * 0.06;
+            const taxReduction = params.taxReduction || 0;
+            const taxReductionLimit = params.taxReductionLimit || (taxInitial * 0.50);
             const vat = params.vat || 0;
             const insurance = params.insurance || 0;
             const totalBurden = params.totalBurden || 0;
@@ -1142,6 +1178,7 @@
             const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
             const vatRate = 5;
             const vatCharged = revenue * vatRate / (100 + vatRate);
+            const reductionLimited = baseInsurStd >= taxReductionLimit && Math.abs(taxReduction - taxReductionLimit) <= 0.01;
 
             const lines = [
                 '# Пояснение к расчёту налоговой нагрузки (УСН Доходы 6% + НДС 5%)',
@@ -1169,8 +1206,34 @@
                 `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
                 '',
                 '## 4. Расчёт налога УСН 6%',
-                'Налог по УСН 6%:',
-                `${fmtMoney(revenue)} × 6% = ${fmtMoney(tax)} ₽.`,
+                'Налог без уменьшения:',
+                `${fmtMoney(revenue)} × 6% = ${fmtMoney(taxInitial)} ₽.`,
+                '',
+                'Сумма страховых взносов, участвующая в уменьшении налога (30% от ФОТ):',
+                `${fmtMoney(baseInsurStd)} ₽.`,
+                '',
+                'Максимальное уменьшение (не более 50% от начисленного налога):',
+                `${fmtMoney(taxInitial)} ₽ × 50% = ${fmtMoney(taxReductionLimit)} ₽.`,
+            ];
+
+            if (reductionLimited) {
+                lines.push(
+                    '',
+                    'Фактическое уменьшение налога:',
+                    `так как сумма страховых взносов (30% от ФОТ) = ${fmtMoney(baseInsurStd)} ₽ превышает или равна максимальному допустимому уменьшению (${fmtMoney(taxReductionLimit)} ₽), налог может быть уменьшен только на ${fmtMoney(taxReduction)} ₽.`
+                );
+            } else {
+                lines.push(
+                    '',
+                    'Фактическое уменьшение налога:',
+                    `так как сумма страховых взносов (30% от ФОТ) = ${fmtMoney(baseInsurStd)} ₽ меньше максимального допустимого уменьшения (${fmtMoney(taxReductionLimit)} ₽), налог уменьшается на ${fmtMoney(taxReduction)} ₽.`
+                );
+            }
+
+            lines.push(
+                '',
+                'Налог к уплате по УСН 6%:',
+                `${fmtMoney(taxInitial)} ₽ − ${fmtMoney(taxReduction)} ₽ = ${fmtMoney(tax)} ₽.`,
                 '',
                 '## 5. Расчёт НДС 5%',
                 '',
@@ -1209,7 +1272,7 @@
                 '',
                 'Расчёт:',
                 `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} − ${fmtMoney(vat)} = ${fmtMoney(netProfit)} ₽.`,
-            ];
+            );
 
             return renderMarkdown(lines);
         }
@@ -1597,6 +1660,9 @@
                 accumulatedVatCredit: accumulatedVatCredit,
                 usnRegularTax: data.usnRegularTax || 0,
                 usnMinTax: data.usnMinTax || 0,
+                taxInitial: data.taxInitial || 0,
+                taxReduction: data.taxReduction || 0,
+                taxReductionLimit: data.taxReductionLimit || 0,
             };
 
             if (regime.includes('АУСН 8')) {
@@ -1649,6 +1715,9 @@
                 ownerExtraBase: parseFloat(row.dataset.ownerExtraBase || 0),
                 usnRegularTax:  parseFloat(row.dataset.usnRegularTax || 0),
                 usnMinTax:      parseFloat(row.dataset.usnMinTax || 0),
+                taxInitial:     parseFloat(row.dataset.taxInitial || 0),
+                taxReduction:   parseFloat(row.dataset.taxReduction || 0),
+                taxReductionLimit: parseFloat(row.dataset.taxReductionLimit || 0),
             };
 
             const detailsRow = document.createElement('tr');

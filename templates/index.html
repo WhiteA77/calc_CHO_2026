@@ -250,6 +250,13 @@
             margin-bottom: 0;
         }
 
+        .markdown-explanation {
+            white-space: pre-wrap;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
         .regime-row {
             cursor: pointer;
         }
@@ -638,6 +645,8 @@
                                 data-net-profit="{{ data.net_profit }}"
                                 data-owner-extra="{{ data.owner_extra or 0 }}"
                                 data-owner-extra-base="{{ data.owner_extra_base or 0 }}"
+                                data-usn-regular-tax="{{ data.usn_regular_tax or 0 }}"
+                                data-usn-min-tax="{{ data.usn_min_tax or 0 }}"
                             {% endif %}
                         >
                             <td class="regime-name {% if not is_available %}unavailable{% endif %}">
@@ -897,7 +906,7 @@
         const baseInsurStd  = parseFloat(ds.insuranceStandard || 0);
         const vatPurchasesPercent = parseFloat(ds.vatPurchasesPercent || 0);
         const accumulatedVatCredit = parseFloat(ds.accumulatedVatCredit || 0);
-        const stockExtra   = parseFloat(ds.stockExtra || 0);
+        const tableStockExtra   = parseFloat(ds.stockExtra || 0);
         const transitionMode = ds.transitionMode || 'none';
 
         function fmtMoney(value) {
@@ -908,6 +917,637 @@
         function fmtPercent(value) {
             const num = Number(value) || 0;
             return num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function renderMarkdown(lines) {
+            return `<pre class="markdown-explanation">${lines.join('\n')}\n</pre>`;
+        }
+
+        function buildAusn8Markdown(params) {
+            const revenue = params.revenue || 0;
+            const expenses = params.expenses || 0;
+            const tax = params.tax || 0;
+            const totalBurden = params.totalBurden || 0;
+            const burdenPct = params.burdenPct || 0;
+            const netProfit = params.netProfit || 0;
+            const baseCost = params.baseCost || 0;
+            const baseRent = params.baseRent || 0;
+            const baseOther = params.baseOther || 0;
+            const baseFot = params.baseFot || 0;
+            const burdenPercentText = fmtPercent(burdenPct);
+
+            const lines = [
+                '# Пояснение к расчёту налоговой нагрузки (АУСН 8%)',
+                '',
+                '## 1. Вводные данные',
+                'Режим: АУСН 8% (доходы).',
+                '',
+                'Учитывается:',
+                '- Налог 8% от выручки.',
+                '- НДС не применяется.',
+                '- Страховые взносы не включаются в расчёт налоговой нагрузки (0 ₽).',
+                '',
+                '## 2. Доходы',
+                `Доходы за период: ${fmtMoney(revenue)} ₽.`,
+                '',
+                '## 3. Расходы (без налогов)',
+                `Итого расходы: ${fmtMoney(expenses)} ₽.`,
+                '',
+                'Структура расходов:',
+                `- Себестоимость: ${fmtMoney(baseCost)} ₽.`,
+                `- Аренда: ${fmtMoney(baseRent)} ₽.`,
+                `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
+                `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
+                '',
+                '## 4. Расчёт налога АУСН 8%',
+                'Налог по АУСН:',
+                `${fmtMoney(revenue)} × 8% = ${fmtMoney(tax)} ₽.`,
+                '',
+                '## 5. Страховые взносы',
+                'В этом режиме страховые взносы ИП за себя не учитываются в налоговой нагрузке калькулятора (0 ₽).',
+                '',
+                '## 6. Совокупная налоговая нагрузка',
+                'Сумма налогов и взносов:',
+                `${fmtMoney(tax)} + 0 ₽ + 0 ₽ = ${fmtMoney(totalBurden)} ₽.`,
+                '',
+                'Доля от выручки:',
+                `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
+                '',
+                '## 7. Чистая прибыль',
+                'Формула:',
+                'доходы − расходы (без налогов) − налог АУСН.',
+                '',
+                'Расчёт:',
+                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} = ${fmtMoney(netProfit)} ₽.`,
+            ];
+
+            return renderMarkdown(lines);
+        }
+
+        function buildAusn20Markdown(params) {
+            const revenue = params.revenue || 0;
+            const expenses = params.expenses || 0;
+            const tax = params.tax || 0;
+            const totalBurden = params.totalBurden || 0;
+            const burdenPct = params.burdenPct || 0;
+            const netProfit = params.netProfit || 0;
+            const baseCost = params.baseCost || 0;
+            const baseRent = params.baseRent || 0;
+            const baseOther = params.baseOther || 0;
+            const baseFot = params.baseFot || 0;
+            const burdenPercentText = fmtPercent(burdenPct);
+
+            const lines = [
+                '# Пояснение к расчёту налоговой нагрузки (АУСН 20%)',
+                '',
+                '## 1. Вводные данные',
+                'Режим: АУСН 20% (доходы минус расходы).',
+                '',
+                'Учитывается:',
+                '- Налог за каждый месяц = max(20% × (доходы − расходы), 3% × доходов месяца); в таблице указана сумма за год.',
+                '- НДС не применяется.',
+                '- Страховые взносы не включаются в расчёт налоговой нагрузки (0 ₽).',
+                '',
+                '## 2. Доходы',
+                `Доходы за период: ${fmtMoney(revenue)} ₽.`,
+                '',
+                '## 3. Расходы (без налогов)',
+                `Итого расходы: ${fmtMoney(expenses)} ₽.`,
+                '',
+                'Структура расходов:',
+                `- Себестоимость: ${fmtMoney(baseCost)} ₽.`,
+                `- Аренда: ${fmtMoney(baseRent)} ₽.`,
+                `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
+                `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
+                '',
+                '## 4. Расчёт налога АУСН 20%',
+                'Налог по АУСН 20% — сумма помесячных max(20% × (доходы − расходы), 3% × доходов месяца).',
+                `По итогам года налог составил ${fmtMoney(tax)} ₽.`,
+                '',
+                '## 5. Страховые взносы',
+                'В этом режиме страховые взносы ИП за себя не учитываются в налоговой нагрузке калькулятора (0 ₽).',
+                '',
+                '## 6. Совокупная налоговая нагрузка',
+                'Сумма налогов и взносов:',
+                `${fmtMoney(tax)} + 0 ₽ + 0 ₽ = ${fmtMoney(totalBurden)} ₽.`,
+                '',
+                'Доля от выручки:',
+                `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
+                '',
+                '## 7. Чистая прибыль',
+                'Формула:',
+                'доходы − расходы (без налогов) − налог АУСН.',
+                '',
+                'Расчёт:',
+                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} = ${fmtMoney(netProfit)} ₽.`,
+            ];
+
+            return renderMarkdown(lines);
+        }
+
+        function buildUsnIncomeMarkdown(params) {
+            const revenue = params.revenue || 0;
+            const expenses = params.expenses || 0;
+            const tax = params.tax || 0;
+            const insurance = params.insurance || 0;
+            const totalBurden = params.totalBurden || 0;
+            const burdenPct = params.burdenPct || 0;
+            const netProfit = params.netProfit || 0;
+            const baseCost = params.baseCost || 0;
+            const baseRent = params.baseRent || 0;
+            const baseOther = params.baseOther || 0;
+            const baseFot = params.baseFot || 0;
+            const baseInsurStd = params.baseInsurStd || 0;
+            const ownerExtra = params.ownerExtra || 0;
+            const ownerExtraBase = params.ownerExtraBase || 0;
+            const burdenPercentText = fmtPercent(burdenPct);
+            const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
+            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
+
+            const lines = [
+                '# Пояснение к расчёту налоговой нагрузки (УСН Доходы 6%)',
+                '',
+                '## 1. Вводные данные',
+                'Режим: УСН 6% (доходы).',
+                '',
+                'Учитывается:',
+                '- Налог УСН 6% от выручки.',
+                '- НДС не применяется.',
+                '- Страховые взносы: 30% от ФОТ и 1% с доходов свыше 300 000 ₽.',
+                '',
+                '## 2. Доходы',
+                `Доходы за период: ${fmtMoney(revenue)} ₽.`,
+                '',
+                '## 3. Расходы (без налогов)',
+                `Итого расходы: ${fmtMoney(expenses)} ₽.`,
+                '',
+                'Структура расходов:',
+                `- Себестоимость: ${fmtMoney(baseCost)} ₽.`,
+                `- Аренда: ${fmtMoney(baseRent)} ₽.`,
+                `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
+                `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
+                `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
+                `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
+                '',
+                '## 4. Расчёт налога УСН 6%',
+                'Налог по УСН 6%:',
+                `${fmtMoney(revenue)} × 6% = ${fmtMoney(tax)} ₽.`,
+                '',
+                '## 5. Страховые взносы',
+                '30% от ФОТ:',
+                `${fmtMoney(baseFot)} × 30% = ${fmtMoney(baseInsurStd)} ₽.`,
+                '',
+                '1% с доходов свыше 300 000 ₽:',
+                `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
+                '',
+                'Итого страховых взносов:',
+                `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
+                '',
+                '## 6. Совокупная налоговая нагрузка',
+                'Сумма налогов и взносов:',
+                `${fmtMoney(tax)} + 0 ₽ + ${fmtMoney(insurance)} = ${fmtMoney(totalBurden)} ₽.`,
+                '',
+                'Доля от выручки:',
+                `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
+                '',
+                '## 7. Чистая прибыль',
+                'Формула:',
+                'доходы − расходы (без налогов) − налог УСН.',
+                '',
+                'Расчёт:',
+                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} = ${fmtMoney(netProfit)} ₽.`,
+            ];
+
+            return renderMarkdown(lines);
+        }
+
+        function buildUsnIncome5Markdown(params) {
+            const revenue = params.revenue || 0;
+            const expenses = params.expenses || 0;
+            const tax = params.tax || 0;
+            const vat = params.vat || 0;
+            const insurance = params.insurance || 0;
+            const totalBurden = params.totalBurden || 0;
+            const burdenPct = params.burdenPct || 0;
+            const netProfit = params.netProfit || 0;
+            const baseCost = params.baseCost || 0;
+            const baseRent = params.baseRent || 0;
+            const baseOther = params.baseOther || 0;
+            const baseFot = params.baseFot || 0;
+            const baseInsurStd = params.baseInsurStd || 0;
+            const ownerExtra = params.ownerExtra || 0;
+            const ownerExtraBase = params.ownerExtraBase || 0;
+            const burdenPercentText = fmtPercent(burdenPct);
+            const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
+            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
+            const vatRate = 5;
+            const vatCharged = revenue * vatRate / (100 + vatRate);
+
+            const lines = [
+                '# Пояснение к расчёту налоговой нагрузки (УСН Доходы 6% + НДС 5%)',
+                '',
+                '## 1. Вводные данные',
+                'Режим: УСН 6% + НДС 5%.',
+                '',
+                'Учитывается:',
+                '- Налог УСН 6% от выручки.',
+                '- НДС 5% начисляется с выручки (без вычетов).',
+                '- Страховые взносы: 30% от ФОТ и 1% с доходов свыше 300 000 ₽.',
+                '',
+                '## 2. Доходы',
+                `Доходы за период: ${fmtMoney(revenue)} ₽.`,
+                '',
+                '## 3. Расходы (без налогов)',
+                `Итого расходы: ${fmtMoney(expenses)} ₽.`,
+                '',
+                'Структура расходов:',
+                `- Себестоимость: ${fmtMoney(baseCost)} ₽.`,
+                `- Аренда: ${fmtMoney(baseRent)} ₽.`,
+                `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
+                `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
+                `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
+                `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
+                '',
+                '## 4. Расчёт налога УСН 6%',
+                'Налог по УСН 6%:',
+                `${fmtMoney(revenue)} × 6% = ${fmtMoney(tax)} ₽.`,
+                '',
+                '## 5. Расчёт НДС 5%',
+                '',
+                '### 5.1. НДС к начислению',
+                'Формула: выручка × 5 / 105.',
+                '',
+                `${fmtMoney(revenue)} × 5 / 105 = ${fmtMoney(vatCharged)} ₽.`,
+                '',
+                '### 5.2. НДС к вычету',
+                'В этом режиме вычеты по НДС не применяются (льгота 5%).',
+                '',
+                '### 5.3. НДС к уплате',
+                'НДС к уплате:',
+                `${fmtMoney(vatCharged)} − 0 ₽ = ${fmtMoney(vat)} ₽.`,
+                '',
+                '## 6. Страховые взносы',
+                '30% от ФОТ:',
+                `${fmtMoney(baseFot)} × 30% = ${fmtMoney(baseInsurStd)} ₽.`,
+                '',
+                '1% с доходов свыше 300 000 ₽:',
+                `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
+                '',
+                'Итого страховых взносов:',
+                `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
+                '',
+                '## 7. Совокупная налоговая нагрузка',
+                'Сумма налогов и взносов:',
+                `${fmtMoney(tax)} + ${fmtMoney(vat)} + ${fmtMoney(insurance)} = ${fmtMoney(totalBurden)} ₽.`,
+                '',
+                'Доля от выручки:',
+                `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
+                '',
+                '## 8. Чистая прибыль',
+                'Формула:',
+                'доходы − расходы (без налогов) − налог УСН − НДС.',
+                '',
+                'Расчёт:',
+                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} − ${fmtMoney(vat)} = ${fmtMoney(netProfit)} ₽.`,
+            ];
+
+            return renderMarkdown(lines);
+        }
+
+        function buildUsnDrMarkdown(params, options) {
+            const revenue = params.revenue || 0;
+            const expenses = params.expenses || 0;
+            const tax = params.tax || 0;
+            const vat = params.vat || 0;
+            const insurance = params.insurance || 0;
+            const totalBurden = params.totalBurden || 0;
+            const burdenPct = params.burdenPct || 0;
+            const netProfit = params.netProfit || 0;
+            const ownerExtra = params.ownerExtra || 0;
+            const ownerExtraBase = params.ownerExtraBase || 0;
+            const baseCost = params.baseCost || 0;
+            const baseRent = params.baseRent || 0;
+            const baseOther = params.baseOther || 0;
+            const baseFot = params.baseFot || 0;
+            const baseInsurStd = params.baseInsurStd || 0;
+            const stockExtra = params.stockExtra || 0;
+            const usnRegularTax = params.usnRegularTax || 0;
+            const usnMinTax = params.usnMinTax || 0;
+            const vatPurchasesPercent = params.vatPurchasesPercent || 0;
+            const accumulatedVatCredit = params.accumulatedVatCredit || 0;
+            const transitionMode = params.transitionMode || 'none';
+            const title = options.title;
+            const includeVatSection = !!options.includeVatSection;
+            const vatRate = options.vatRate;
+            const burdenPercentText = fmtPercent(burdenPct);
+            const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
+            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
+            const stockPart = stockExtra > 0 ? stockExtra : 0;
+            const usnBase = revenue - expenses - stockPart;
+            const positiveBase = Math.max(usnBase, 0);
+            const regularTax = usnRegularTax || positiveBase * 0.15;
+            const minTax = usnMinTax || revenue * 0.01;
+            const usesMinTax = Math.abs(tax - minTax) < Math.abs(tax - regularTax);
+            const lines = [
+                `# Пояснение к расчёту налоговой нагрузки (${title})`,
+                '',
+                '## 1. Вводные данные',
+                `Режим: ${title}.`,
+                '',
+                'Учитывается:',
+                '- УСН 15% с прибыли (доходы − расходы).',
+                includeVatSection
+                    ? (vatRate === 5
+                        ? '- НДС 5%: начисляется с выручки без вычетов.'
+                        : '- НДС 22%: начисленный с выручки минус входящий по закупкам.')
+                    : '- НДС не применяется.',
+                '- Страховые взносы: 30% от ФОТ и 1% с доходов свыше 300 000 ₽.',
+                '',
+                '## 2. Доходы',
+                `Доходы за период: ${fmtMoney(revenue)} ₽.`,
+                '',
+                '## 3. Расходы (без налогов)',
+                `Итого расходы: ${fmtMoney(expenses)} ₽.`,
+                '',
+                'Структура расходов:',
+                `- Себестоимость: ${fmtMoney(baseCost)} ₽.`,
+                `- Аренда: ${fmtMoney(baseRent)} ₽.`,
+                `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
+                `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
+                `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
+                `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
+            ];
+
+            if (stockPart > 0) {
+                lines.push(
+                    '',
+                    `Дополнительно: при переходе учтено единовременное списание остатков товара на ${fmtMoney(stockPart)} ₽ (уменьшает налоговую базу, но не входит в расходы).`
+                );
+            }
+
+            lines.push(
+                '',
+                '## 4. Расчёт налога УСН 15%',
+                'Налоговая база:',
+                `${fmtMoney(revenue)} − ${fmtMoney(expenses)}${stockPart > 0 ? ` − ${fmtMoney(stockPart)} (остатки)` : ''} = ${fmtMoney(usnBase)} ₽.`,
+                '',
+                'Налог по УСН 15%:',
+                `${fmtMoney(positiveBase)} × 15% = ${fmtMoney(regularTax)} ₽.`,
+                '',
+                'Минимальный налог 1% от доходов:',
+                `${fmtMoney(revenue)} × 1% = ${fmtMoney(minTax)} ₽.`,
+                '',
+                usesMinTax
+                    ? `Так как налог по ставке 15% (${fmtMoney(regularTax)} ₽) меньше минимального, к уплате принимается минимальный налог ${fmtMoney(tax)} ₽.`
+                    : 'Так как налог по ставке 15% не меньше минимального, к уплате берётся результат по ставке 15%.',
+            );
+
+            if (includeVatSection && vatRate === 5) {
+                const vatCharged = revenue * vatRate / (100 + vatRate);
+                lines.push(
+                    '',
+                    '## 5. Расчёт НДС 5%',
+                    '',
+                    '### 5.1. НДС к начислению',
+                    'Формула: выручка × 5 / 105.',
+                    '',
+                    `${fmtMoney(revenue)} × 5 / 105 = ${fmtMoney(vatCharged)} ₽.`,
+                    '',
+                    '### 5.2. НДС к вычету',
+                    'В этом режиме вычеты по НДС не применяются (льгота 5%).',
+                    '',
+                    '### 5.3. НДС к уплате',
+                    'НДС к уплате:',
+                    `${fmtMoney(vatCharged)} − 0 ₽ = ${fmtMoney(vat)} ₽.`,
+                );
+            } else if (includeVatSection && vatRate === 22) {
+                const vatCharged = revenue * vatRate / (100 + vatRate);
+                const purchasesBase = baseCost * (vatPurchasesPercent / 100);
+                const vatDeductible = purchasesBase * vatRate / (100 + vatRate);
+                const creditPart = accumulatedVatCredit > 0 && transitionMode === 'vat'
+                    ? ` − ${fmtMoney(accumulatedVatCredit)} ₽ (накопленный НДС)`
+                    : '';
+
+                lines.push(
+                    '',
+                    '## 5. Расчёт НДС 22%',
+                    '',
+                    '### 5.1. НДС к начислению',
+                    'Формула: выручка × 22 / 122.',
+                    '',
+                    `${fmtMoney(revenue)} × 22 / 122 = ${fmtMoney(vatCharged)} ₽.`,
+                    '',
+                    '### 5.2. НДС к вычету по закупкам',
+                    `Себестоимость с НДС: ${fmtMoney(baseCost)} ₽.`,
+                    `Доля закупок с НДС: ${fmtPercent(vatPurchasesPercent)}%.`,
+                    '',
+                    'НДС к вычету:',
+                    `${fmtMoney(baseCost)} × ${fmtPercent(vatPurchasesPercent)}% × 22 / 122 = ${fmtMoney(vatDeductible)} ₽.`,
+                );
+
+                if (accumulatedVatCredit > 0 && transitionMode === 'vat') {
+                    lines.push(
+                        '',
+                        `Дополнительный вычет при переходе: накопленный входящий НДС = ${fmtMoney(accumulatedVatCredit)} ₽.`
+                    );
+                }
+
+                lines.push(
+                    '',
+                    '### 5.3. НДС к уплате',
+                    'НДС к уплате:',
+                    `${fmtMoney(vatCharged)} − ${fmtMoney(vatDeductible)}${creditPart} = ${fmtMoney(vat)} ₽.`,
+                );
+            }
+
+            lines.push(
+                '',
+                `${includeVatSection ? '## 6.' : '## 5.'} Страховые взносы`,
+                '30% от ФОТ:',
+                `${fmtMoney(baseFot)} × 30% = ${fmtMoney(baseInsurStd)} ₽.`,
+                '',
+                '1% с доходов свыше 300 000 ₽:',
+                `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
+                '',
+                'Итого страховых взносов:',
+                `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
+                '',
+                `${includeVatSection ? '## 7.' : '## 6.'} Совокупная налоговая нагрузка`,
+                'Сумма налогов и взносов:',
+                `${fmtMoney(tax)} + ${fmtMoney(vat)} + ${fmtMoney(insurance)} = ${fmtMoney(totalBurden)} ₽.`,
+                '',
+                'Доля от выручки:',
+                `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
+                '',
+                `${includeVatSection ? '## 8.' : '## 7.'} Чистая прибыль`,
+                'Формула:',
+                includeVatSection
+                    ? 'доходы − расходы (без налогов) − налог УСН − НДС.'
+                    : 'доходы − расходы (без налогов) − налог УСН.',
+                '',
+                'Расчёт:',
+                includeVatSection
+                    ? `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} − ${fmtMoney(vat)} = ${fmtMoney(netProfit)} ₽.`
+                    : `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} = ${fmtMoney(netProfit)} ₽.`,
+            );
+
+            return renderMarkdown(lines);
+        }
+
+        function buildUsnDrNoVatMarkdown(params) {
+            return buildUsnDrMarkdown(params, {
+                title: 'УСН «доходы минус расходы» 15%',
+                includeVatSection: false,
+            });
+        }
+
+        function buildUsnDr5Markdown(params) {
+            return buildUsnDrMarkdown(params, {
+                title: 'УСН «доходы минус расходы» 15% + НДС 5%',
+                includeVatSection: true,
+                vatRate: 5,
+            });
+        }
+
+        function buildUsnDr22Markdown(params) {
+            return buildUsnDrMarkdown(params, {
+                title: 'УСН «доходы минус расходы» 15% + НДС 22%',
+                includeVatSection: true,
+                vatRate: 22,
+            });
+        }
+
+        function buildOsnoMarkdown(params) {
+            const revenue = params.revenue || 0;
+            const expenses = params.expenses || 0;
+            const tax = params.tax || 0;
+            const vat = params.vat || 0;
+            const insurance = params.insurance || 0;
+            const totalBurden = params.totalBurden || 0;
+            const burdenPct = params.burdenPct || 0;
+            const netProfit = params.netProfit || 0;
+            const ownerExtra = params.ownerExtra || 0;
+            const ownerExtraBase = params.ownerExtraBase || 0;
+            const baseCost = params.baseCost || 0;
+            const baseRent = params.baseRent || 0;
+            const baseOther = params.baseOther || 0;
+            const baseFot = params.baseFot || 0;
+            const baseInsurStd = params.baseInsurStd || 0;
+            const vatPurchasesPercent = params.vatPurchasesPercent || 0;
+            const stockExtra = params.stockExtra || 0;
+            const accumulatedVatCredit = params.accumulatedVatCredit || 0;
+            const transitionMode = params.transitionMode || 'none';
+
+            const stockPart = stockExtra > 0 ? stockExtra : 0;
+            const profitBase = revenue - expenses - stockPart - vat;
+            const positiveProfitBase = Math.max(profitBase, 0);
+            const vatRate = 22;
+            const vatCharged = revenue * vatRate / (100 + vatRate);
+            const purchasesBase = baseCost * (vatPurchasesPercent / 100);
+            const vatDeductible = purchasesBase * vatRate / (100 + vatRate);
+            const burdenPercentText = fmtPercent(burdenPct);
+            const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
+            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
+            const creditPart = transitionMode === 'vat' && accumulatedVatCredit > 0
+                ? ` − ${fmtMoney(accumulatedVatCredit)} ₽ (накопленный НДС)`
+                : '';
+
+            const lines = [
+                '# Пояснение к расчёту налоговой нагрузки (ОСНО + НДС 22%)',
+                '',
+                '## 1. Вводные данные',
+                'Режим: ОСНО + НДС 22%.',
+                '',
+                'Учитывается:',
+                '- НДС 22%: начисленный с выручки минус входящий по закупкам.',
+                '- Налог на прибыль 25% с базы после расходов, НДС и списания остатков (если применимо).',
+                '- Страховые взносы: 30% от ФОТ и 1% с доходов свыше 300 000 ₽.',
+                '',
+                '## 2. Доходы',
+                `Доходы за период: ${fmtMoney(revenue)} ₽.`,
+                '',
+                '## 3. Расходы (без налогов)',
+                `Итого расходы: ${fmtMoney(expenses)} ₽.`,
+                '',
+                'Структура расходов:',
+                `- Себестоимость: ${fmtMoney(baseCost)} ₽.`,
+                `- Аренда: ${fmtMoney(baseRent)} ₽.`,
+                `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
+                `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
+                `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
+                `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
+            ];
+
+            if (stockPart > 0) {
+                lines.push(
+                    '',
+                    `Дополнительно: при переходе учтено единовременное списание остатков товара на ${fmtMoney(stockPart)} ₽ (уменьшает налоговую базу по налогу на прибыль, но не входит в расходы).`
+                );
+            }
+
+            lines.push(
+                '',
+                '## 4. Расчёт налога на прибыль 25%',
+                'Налоговая база:',
+                `${fmtMoney(revenue)} − ${fmtMoney(expenses)}${stockPart > 0 ? ` − ${fmtMoney(stockPart)} (остатки)` : ''} − ${fmtMoney(vat)} (НДС) = ${fmtMoney(profitBase)} ₽.`,
+                '',
+                'Налог на прибыль:',
+                `${fmtMoney(positiveProfitBase)} × 25% = ${fmtMoney(tax)} ₽.`,
+                '',
+                '## 5. Расчёт НДС 22%',
+                '',
+                '### 5.1. НДС к начислению',
+                'Формула: выручка × 22 / 122.',
+                '',
+                `${fmtMoney(revenue)} × 22 / 122 = ${fmtMoney(vatCharged)} ₽.`,
+                '',
+                '### 5.2. НДС к вычету по закупкам',
+                `Себестоимость с НДС: ${fmtMoney(baseCost)} ₽.`,
+                `Доля закупок с НДС: ${fmtPercent(vatPurchasesPercent)}%.`,
+                '',
+                'НДС к вычету:',
+                `${fmtMoney(baseCost)} × ${fmtPercent(vatPurchasesPercent)}% × 22 / 122 = ${fmtMoney(vatDeductible)} ₽.`,
+            );
+
+            if (transitionMode === 'vat' && accumulatedVatCredit > 0) {
+                lines.push(
+                    '',
+                    `Дополнительный вычет при переходе: накопленный входящий НДС = ${fmtMoney(accumulatedVatCredit)} ₽.`
+                );
+            }
+
+            lines.push(
+                '',
+                '### 5.3. НДС к уплате',
+                'НДС к уплате:',
+                `${fmtMoney(vatCharged)} − ${fmtMoney(vatDeductible)}${creditPart} = ${fmtMoney(vat)} ₽.`,
+                '',
+                '## 6. Страховые взносы',
+                '30% от ФОТ:',
+                `${fmtMoney(baseFot)} × 30% = ${fmtMoney(baseInsurStd)} ₽.`,
+                '',
+                '1% с доходов свыше 300 000 ₽:',
+                `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
+                '',
+                'Итого страховых взносов:',
+                `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
+                '',
+                '## 7. Совокупная налоговая нагрузка',
+                'Сумма налогов и взносов:',
+                `${fmtMoney(tax)} + ${fmtMoney(vat)} + ${fmtMoney(insurance)} = ${fmtMoney(totalBurden)} ₽.`,
+                '',
+                'Доля от выручки:',
+                `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
+                '',
+                '## 8. Чистая прибыль',
+                'Формула:',
+                'доходы − расходы (без налогов) − налог УСН − НДС.',
+                '',
+                'Расчёт:',
+                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} − ${fmtMoney(vat)} = ${fmtMoney(netProfit)} ₽.`,
+            );
+
+            return renderMarkdown(lines);
         }
 
         function buildExplanation(regime, data) {
@@ -930,189 +1570,61 @@
             const isUsnDr22 = regime.includes('УСН Д-Р 15% + НДС 22%');
             const isOsno = regime.includes('ОСНО');
 
-            const lines = [];
+            const stockApplicable =
+                transitionMode === 'stock'
+                && tableStockExtra > 0
+                && (isUsnDrNoVat || isUsnDr5 || isUsnDr22 || isOsno);
 
-            // 1. Общее словесное описание режима
+            const builderParams = {
+                revenue: revenue,
+                expenses: expenses,
+                tax: tax,
+                vat: vat,
+                insurance: insurance,
+                totalBurden: totalBurden,
+                burdenPct: burdenPct,
+                netProfit: netProfit,
+                ownerExtra: ownerExtra,
+                ownerExtraBase: ownerExtraBase,
+                baseCost: baseCost,
+                baseRent: baseRent,
+                baseOther: baseOther,
+                baseFot: baseFot,
+                baseInsurStd: baseInsurStd,
+                stockExtra: stockApplicable ? tableStockExtra : 0,
+                transitionMode: transitionMode,
+                vatPurchasesPercent: vatPurchasesPercent,
+                accumulatedVatCredit: accumulatedVatCredit,
+                usnRegularTax: data.usnRegularTax || 0,
+                usnMinTax: data.usnMinTax || 0,
+            };
+
             if (regime.includes('АУСН 8')) {
-                lines.push('<p><strong>Как считается налог:</strong> 8% от выручки. Страховые взносы на АУСН не платятся, НДС нет. Взнос 1% с доходов свыше 300 000 ₽ на АУСН не применяется.</p>');
-            } else if (regime.includes('АУСН 20')) {
-                lines.push('<p><strong>Как считается налог:</strong> помесячно: для каждого месяца налог = max(20% от (доходы − расходы), 3% от доходов месяца). В таблице показана сумма этих налогов за год. Взнос 1% с доходов свыше 300 000 ₽ на АУСН не применяется.</p>');
-            } else if (isUsnIncomeNoVat) {
-                lines.push('<p><strong>Как считается налог:</strong> 6% от выручки. НДС не применяется (льгота для общепита). Страховые взносы учитывают 30% от ФОТ и 1% с доходов свыше 300 000 ₽.</p>');
-            } else if (isUsnDrNoVat) {
-                lines.push('<p><strong>Как считается налог:</strong> 15% от положительной разницы «доходы − расходы». НДС не применяется (льгота для общепита). Страховые взносы учитывают 30% от ФОТ и 1% с доходов свыше 300 000 ₽.</p>');
-            } else if (isUsnIncome5) {
-                lines.push('<p><strong>Как считается налог:</strong> УСН 6% от выручки + НДС 5% к начислению с выручки (без вычетов по закупкам) + страховые взносы (30% от ФОТ и 1% с доходов свыше 300 000 ₽).</p>');
-            } else if (isUsnDr5) {
-                lines.push('<p><strong>Как считается налог:</strong> УСН 15% с прибыли (доходы − расходы) + НДС 5% с выручки (без вычетов) + страховые взносы (30% от ФОТ и 1% с доходов свыше 300 000 ₽).</p>');
-            } else if (isUsnDr22) {
-                lines.push('<p><strong>Как считается налог:</strong> УСН 15% с прибыли (доходы − расходы) + НДС 22%: налог к начислению с выручки минус НДС по закупкам и накопленный входящий НДС прошлых периодов + страховые взносы (30% от ФОТ и 1% с доходов свыше 300 000 ₽).</p>');
-            } else if (isOsno) {
-                lines.push('<p><strong>Как считается налог:</strong> НДС 22% (к начислению с выручки минус НДС по закупкам и накопленный входящий НДС) + налог на прибыль 25% с прибыли после учёта расходов и НДС + страховые взносы (30% от ФОТ и 1% с доходов свыше 300 000 ₽).</p>');
+                return buildAusn8Markdown(builderParams);
+            }
+            if (regime.includes('АУСН 20')) {
+                return buildAusn20Markdown(builderParams);
+            }
+            if (isUsnIncomeNoVat) {
+                return buildUsnIncomeMarkdown(builderParams);
+            }
+            if (isUsnIncome5) {
+                return buildUsnIncome5Markdown(builderParams);
+            }
+            if (isUsnDrNoVat) {
+                return buildUsnDrNoVatMarkdown(builderParams);
+            }
+            if (isUsnDr5) {
+                return buildUsnDr5Markdown(builderParams);
+            }
+            if (isUsnDr22) {
+                return buildUsnDr22Markdown(builderParams);
+            }
+            if (isOsno) {
+                return buildOsnoMarkdown(builderParams);
             }
 
-            // 2. Расходы — расшифровка
-            let expenseParts;
-            let canShowStockExtra = false;
-            if (isAusn) {
-                expenseParts =
-                    `${fmtMoney(baseCost)} ₽ (себестоимость) + ` +
-                    `${fmtMoney(baseRent)} ₽ (аренда) + ` +
-                    `${fmtMoney(baseOther)} ₽ (прочие) + ` +
-                    `${fmtMoney(baseFot)} ₽ (ФОТ)`;
-            } else {
-                let parts = [
-                    `${fmtMoney(baseCost)} ₽ (себестоимость)`,
-                    `${fmtMoney(baseRent)} ₽ (аренда)`,
-                    `${fmtMoney(baseOther)} ₽ (прочие)`,
-                    `${fmtMoney(baseFot)} ₽ (ФОТ)`,
-                    `${fmtMoney(baseInsurStd)} ₽ (страховые взносы 30% от ФОТ)`
-                ];
-                if (ownerExtra > 0) {
-                    parts.push(`${fmtMoney(ownerExtra)} ₽ (взнос 1% с превышения базы свыше 300 000 ₽)`);
-                }
-                // Остатки товара учитываются только в определённых режимах
-                canShowStockExtra =
-                    transitionMode === 'stock'
-                    && stockExtra > 0
-                    && (isUsnDrNoVat || isUsnDr5 || isUsnDr22 || isOsno);
-                expenseParts = parts.join(' + ');
-            }
-
-            lines.push(
-                `<p><strong>Доходы:</strong> ${fmtMoney(revenue)} ₽</p>`,
-                `<p><strong>Расходы (без налогов):</strong> ${fmtMoney(expenses)} ₽ = ${expenseParts}</p>`
-            );
-            if (canShowStockExtra) {
-                lines.push(
-                    '<p><strong>Остатки товара:</strong> при переходе на этот режим допускается единовременно учесть '
-                    + 'стоимость подтверждённых товарных остатков в целях налогообложения (уменьшает только налоговую базу, '
-                    + 'но не увеличивает текущие расходы). Требуются накладные, счета-фактуры, карточки складского учёта и '
-                    + 'акт инвентаризации остатков на дату перехода.</p>'
-                );
-            }
-
-            // 3. Налог по режиму (УСН / АУСН / налог на прибыль)
-            if (regime.includes('АУСН 8')) {
-                lines.push(
-                    `<p><strong>Налог по режиму:</strong> 8% от выручки = ${fmtMoney(revenue)} × 8% = ${fmtMoney(tax)} ₽</p>`
-                );
-            } else if (isUsnIncomeNoVat || isUsnIncome5) {
-                lines.push(
-                    `<p><strong>Налог по режиму:</strong> 6% от выручки = ${fmtMoney(revenue)} × 6% = ${fmtMoney(tax)} ₽</p>`
-                );
-            } else if (isUsnDrNoVat || isUsnDr5 || isUsnDr22) {
-                const stockPart =
-                    transitionMode === 'stock' && stockExtra > 0
-                    && (isUsnDrNoVat || isUsnDr5 || isUsnDr22)
-                        ? stockExtra
-                        : 0;
-                const base = revenue - expenses - stockPart;
-                const stockText = stockPart > 0
-                    ? ` − ${fmtMoney(stockPart)} ₽ (единовременное списание остатков товара)`
-                    : '';
-                const positiveBase = Math.max(base, 0);
-                lines.push(
-                    `<p><strong>Налог по режиму:</strong> 15% от положительной разницы (доходы − расходы). ` +
-                    `База = ${fmtMoney(revenue)} ₽ − ${fmtMoney(expenses)} ₽${stockText} = ${fmtMoney(base)} ₽; ` +
-                    `налог = ${fmtMoney(positiveBase)} ₽ × 15% = ${fmtMoney(tax)} ₽</p>`
-                );
-            } else if (regime.includes('АУСН 20')) {
-                lines.push(
-                    `<p><strong>Налог по режиму:</strong> сумма помесячных налогов: max(20% × (доходы − расходы), 3% × доходов месяца) по каждому месяцу. В год получается ${fmtMoney(tax)} ₽.</p>`
-                );
-            } else if (isOsno) {
-                const stockPart = transitionMode === 'stock' && stockExtra > 0 ? stockExtra : 0;
-                const profitBase = revenue - expenses - stockPart - vat;
-                const positiveProfitBase = Math.max(profitBase, 0);
-                let baseExplanation = `${fmtMoney(revenue)} ₽ − ${fmtMoney(expenses)} ₽`;
-                if (stockPart > 0) {
-                    baseExplanation += ` − ${fmtMoney(stockPart)} ₽ (единовременное списание остатков товара для налогооблагаемой базы)`;
-                }
-                baseExplanation += ` − ${fmtMoney(vat)} ₽ (НДС к уплате)`;
-                lines.push(
-                    `<p><strong>Налог по режиму (налог на прибыль):</strong> 25% с прибыли после учёта расходов, ` +
-                    `НДС и, при наличии, списания остатков товара. База = ${baseExplanation} = ${fmtMoney(profitBase)} ₽; ` +
-                    `налог = ${fmtMoney(positiveProfitBase)} ₽ × 25% = ${fmtMoney(tax)} ₽.</p>`
-                );
-            } else {
-                lines.push(
-                    `<p><strong>Налог по режиму:</strong> ${fmtMoney(tax)} ₽</p>`
-                );
-            }
-
-            // 4. НДС — формула с разложением
-            if (isUsnIncome5 || isUsnDr5) {
-                const vatRate = 5;
-                const vatCharged = revenue * vatRate / (100 + vatRate);
-                lines.push(
-                    `<p><strong>НДС 5%:</strong> к начислению с выручки = ${fmtMoney(revenue)} × 5 / 105 ≈ ${fmtMoney(vatCharged)} ₽; ` +
-                    `вычетов по закупкам нет (льгота 5%), накопленный НДС к вычету не применяется, поэтому НДС к уплате ≈ ${fmtMoney(vat)} ₽.</p>`
-                );
-            } else if (isUsnDr22 || isOsno) {
-                const vatRate = 22;
-                const vatCharged = revenue * vatRate / (100 + vatRate);
-                const purchasesBase = baseCost * vatPurchasesPercent / 100;
-                const vatDeductible = purchasesBase * vatRate / (100 + vatRate);
-                let parts = [
-                    `к начислению = ${fmtMoney(revenue)} × 22 / 122 ≈ ${fmtMoney(vatCharged)} ₽`,
-                    `к вычету по закупкам = себестоимость с НДС ${fmtMoney(baseCost)} ₽ × доля с НДС ${fmtPercent(vatPurchasesPercent)}% × 22 / 122 ≈ ${fmtMoney(vatDeductible)} ₽`
-                ];
-                if (accumulatedVatCredit > 0) {
-                    parts.push(`накопленный входящий НДС прошлых периодов = ${fmtMoney(accumulatedVatCredit)} ₽`);
-                }
-                lines.push(
-                    `<p><strong>НДС 22%:</strong> ${parts.join('; ')}; ` +
-                    `НДС к уплате ≈ ${fmtMoney(vat)} ₽.</p>`
-                );
-                if (transitionMode === 'vat' && accumulatedVatCredit > 0) {
-                    lines.push(
-                        '<p><strong>Накопленный НДС:</strong> входящий НДС по товарам и основным средствам за последние 3 года '
-                        + 'можно принять к вычету при переходе на общий порядок начисления НДС, при наличии подтверждающих '
-                        + 'документов (накладные, счета-фактуры, карточки складского учёта, акт остатков).</p>'
-                    );
-                }
-            } else if (regime.includes('АУСН')) {
-                lines.push('<p><strong>НДС:</strong> при АУСН НДС не уплачивается.</p>');
-            } else {
-                if (!vat || vat === 0) {
-                    lines.push('<p><strong>НДС:</strong> в этом режиме НДС не начисляется.</p>');
-                }
-            }
-
-            // 5. Страховые взносы — формула
-            if (isAusn) {
-                lines.push('<p><strong>Страховые взносы:</strong> в режиме АУСН страховые взносы за сотрудников в рамках этого калькулятора не учитываются, взнос 1% свыше 300 000 ₽ также не применяется.</p>');
-            } else if (insurance > 0) {
-                const parts = [];
-                if (baseFot > 0 && baseInsurStd > 0) {
-                    parts.push(`30% от ФОТ = ${fmtMoney(baseFot)} ₽ × 30% = ${fmtMoney(baseInsurStd)} ₽`);
-                }
-                let extraNote = '';
-                if (ownerExtra > 0) {
-                    parts.push(`1% с базы свыше 300 000 ₽ = ${fmtMoney(ownerExtraBase)} ₽ × 1% = ${fmtMoney(ownerExtra)} ₽`);
-                    extraNote = ' Дополнительно включён взнос 1% по правилам для ИП.';
-                }
-                lines.push(
-                    `<p><strong>Страховые взносы:</strong> ${parts.join(' + ')}; итого = ${fmtMoney(insurance)} ₽.${extraNote}</p>`
-                );
-            } else {
-                lines.push('<p><strong>Страховые взносы:</strong> в этом режиме взносы не начисляются (нет ФОТ и доходов свыше 300 000 ₽).</p>');
-            }
-
-            // 6. Налоговая нагрузка и чистая прибыль
-            lines.push(
-                `<p><strong>Налоговая нагрузка:</strong> налог по режиму + НДС + страховые взносы = ` +
-                `${fmtMoney(tax)} + ${fmtMoney(vat)} + ${fmtMoney(insurance)} = ${fmtMoney(totalBurden)} ₽ ` +
-                `(${fmtPercent(burdenPct)}% от выручки). Эта сумма показывает все налоги и взносы за год.</p>`
-            );
-
-            lines.push(
-                `<p><strong>Чистая прибыль:</strong> доходы − расходы (без налогов) − налог по режиму − НДС = ` +
-                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} − ${fmtMoney(vat)} = ${fmtMoney(netProfit)} ₽.</p>`
-            );
-
-            return lines.join('');
+            throw new Error(`Неизвестный режим для пояснения: ${regime}`);
         }
 
         function toggleDetails(row) {
@@ -1135,6 +1647,8 @@
                 netProfit:      parseFloat(row.dataset.netProfit || 0),
                 ownerExtra:     parseFloat(row.dataset.ownerExtra || 0),
                 ownerExtraBase: parseFloat(row.dataset.ownerExtraBase || 0),
+                usnRegularTax:  parseFloat(row.dataset.usnRegularTax || 0),
+                usnMinTax:      parseFloat(row.dataset.usnMinTax || 0),
             };
 
             const detailsRow = document.createElement('tr');
@@ -1150,7 +1664,12 @@
             title.textContent = `Расчёт для: ${regime}`;
 
             const body = document.createElement('div');
-            body.innerHTML = buildExplanation(regime, data);
+            try {
+                body.innerHTML = buildExplanation(regime, data);
+            } catch (err) {
+                console.error('Ошибка при формировании пояснения:', err);
+                body.innerHTML = `<p style="color:#ff6b6b;">Не удалось сформировать пояснение: ${err.message}</p>`;
+            }
 
             box.appendChild(title);
             box.appendChild(body);

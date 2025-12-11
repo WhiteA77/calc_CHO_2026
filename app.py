@@ -13,8 +13,9 @@ THRESHOLD_1_PERCENT = 300_000
 
 def calculate_owner_extra_income(revenue):
     """Дополнительный взнос 1% для режимов 'доходы'"""
-    taxable = max(0.0, revenue - THRESHOLD_1_PERCENT)
-    return taxable * 0.01, taxable
+    base_before_threshold = revenue
+    taxable = max(0.0, base_before_threshold - THRESHOLD_1_PERCENT)
+    return taxable * 0.01, base_before_threshold
 
 
 def calculate_owner_extra_profit(revenue, expenses_without_self_contrib):
@@ -22,9 +23,9 @@ def calculate_owner_extra_profit(revenue, expenses_without_self_contrib):
     Дополнительный взнос 1% для режимов 'доходы минус расходы' и ОСНО.
     Расходы берём без учёта взносов за себя и самого 1%.
     """
-    base = revenue - expenses_without_self_contrib
-    taxable = max(0.0, base - THRESHOLD_1_PERCENT)
-    return taxable * 0.01, taxable
+    base_before_threshold = revenue - expenses_without_self_contrib
+    taxable = max(0.0, base_before_threshold - THRESHOLD_1_PERCENT)
+    return taxable * 0.01, base_before_threshold
 
 
 def format_number(num):
@@ -228,7 +229,10 @@ def calculate_usn_income_minus_expenses(
 ):
     """Расчёт для УСН Доходы минус расходы 15% + НДС"""
     usn_base = revenue - total_expenses - stock_extra
-    usn_tax = max(usn_base, 0) * 0.15
+    taxable_base = max(usn_base, 0)
+    tax_regular = taxable_base * 0.15
+    min_tax = revenue * 0.01
+    usn_tax = max(tax_regular, min_tax)
 
     vat_charged = revenue * vat_rate / (100 + vat_rate)
 
@@ -256,6 +260,8 @@ def calculate_usn_income_minus_expenses(
         'total_burden': total_tax_burden,
         'burden_percent': (total_tax_burden / revenue * 100) if revenue > 0 else 0,
         'net_profit': net_profit,
+        'usn_regular_tax': tax_regular,
+        'usn_min_tax': min_tax,
     }
 
 
@@ -282,7 +288,10 @@ def calculate_usn_income_no_vat(revenue, total_expenses, insurance):
 def calculate_usn_dr_no_vat(revenue, total_expenses, insurance, stock_extra=0.0):
     """УСН Доходы минус расходы 15% без НДС (для общепита)"""
     usn_base = revenue - total_expenses - stock_extra
-    usn_tax = max(usn_base, 0) * 0.15
+    taxable_base = max(usn_base, 0)
+    tax_regular = taxable_base * 0.15
+    min_tax = revenue * 0.01
+    usn_tax = max(tax_regular, min_tax)
     vat_to_pay = 0
 
     total_tax_burden = usn_tax + vat_to_pay + insurance
@@ -297,6 +306,8 @@ def calculate_usn_dr_no_vat(revenue, total_expenses, insurance, stock_extra=0.0)
         'total_burden': total_tax_burden,
         'burden_percent': (total_tax_burden / revenue * 100) if revenue > 0 else 0,
         'net_profit': net_profit,
+        'usn_regular_tax': tax_regular,
+        'usn_min_tax': min_tax,
     }
 
 

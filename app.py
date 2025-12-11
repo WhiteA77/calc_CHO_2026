@@ -8,6 +8,24 @@ MONTH_KEYS = [
     'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
 ]
 
+THRESHOLD_1_PERCENT = 300_000
+
+
+def calculate_owner_extra_income(revenue):
+    """Дополнительный взнос 1% для режимов 'доходы'"""
+    taxable = max(0.0, revenue - THRESHOLD_1_PERCENT)
+    return taxable * 0.01, taxable
+
+
+def calculate_owner_extra_profit(revenue, expenses_without_self_contrib):
+    """
+    Дополнительный взнос 1% для режимов 'доходы минус расходы' и ОСНО.
+    Расходы берём без учёта взносов за себя и самого 1%.
+    """
+    base = revenue - expenses_without_self_contrib
+    taxable = max(0.0, base - THRESHOLD_1_PERCENT)
+    return taxable * 0.01, taxable
+
 
 def format_number(num):
     """Форматирует число с разделителями тысяч"""
@@ -401,22 +419,33 @@ def index():
                 # Страховые взносы 30% от ФОТ (для всех, кроме АУСН)
                 insurance_standard = annual_fot * 0.30
 
-                # Взнос 1% с доходов свыше 300 000 ₽ — только для не-АУСН режимов
-                owner_extra_1p = max(0.0, revenue - 300_000) * 0.01
-
-                # Общие расходы (без налогов) для УСН/ОСНО:
-                # включаем и 30% от ФОТ, и 1% (они уменьшают прибыль)
-                total_expenses_base = (
+                # Общие расходы (без налогов) для УСН/ОСНО без 1% за себя
+                total_expenses_common = (
                     cost_of_goods
                     + rent
                     + other_expenses
                     + annual_fot
                     + insurance_standard
-                    + owner_extra_1p
                 )
 
                 stock_extra = stock_expense_amount if transition_mode == 'stock' else 0.0
                 vat_credit_to_apply = accumulated_vat_credit if transition_mode == 'vat' else 0.0
+
+                # База расходов без взносов за себя для расчёта 1%
+                expenses_without_self_contrib = (
+                    cost_of_goods
+                    + rent
+                    + other_expenses
+                    + annual_fot
+                    + insurance_standard
+                    + stock_extra
+                )
+
+                owner_extra_income, owner_extra_income_base = calculate_owner_extra_income(revenue)
+                owner_extra_profit, owner_extra_profit_base = calculate_owner_extra_profit(
+                    revenue,
+                    expenses_without_self_contrib,
+                )
 
                 # Для АУСН расходы без страховых взносов и без 1%, и без остатков
                 total_expenses_ausn = cost_of_goods + rent + other_expenses + annual_fot
@@ -428,13 +457,19 @@ def index():
                     'other_expenses': other_expenses,
                     'annual_fot': annual_fot,
                     'insurance_standard': insurance_standard,
-                    'owner_extra_1p': owner_extra_1p,
+                    'owner_extra_income': owner_extra_income,
+                    'owner_extra_income_base': owner_extra_income_base,
+                    'owner_extra_profit': owner_extra_profit,
+                    'owner_extra_profit_base': owner_extra_profit_base,
                     'vat_purchases_percent': vat_purchases_percent,
                     'accumulated_vat_credit': accumulated_vat_credit,
                     'stock_expense_amount': stock_expense_amount,
                     'stock_extra': stock_extra,
                     'transition_mode': transition_mode,
                 }
+
+                total_expenses_income_regime = total_expenses_common + owner_extra_income
+                total_expenses_profit_regime = total_expenses_common + owner_extra_profit
 
                 # ---- Расчёт режимов ----
                 results = []
@@ -462,68 +497,88 @@ def index():
                     results.append(('АУСН 20% (нельзя применять — превышены лимиты)', None, False))
 
                 # УСН Доходы 6% (без НДС) — остатки не учитываются
-                insurance_total = insurance_standard + owner_extra_1p
+                insurance_total_income = insurance_standard + owner_extra_income
                 usn_income_no_vat = calculate_usn_income_no_vat(
-                    revenue, total_expenses_base, insurance_total
+                    revenue, total_expenses_income_regime, insurance_total_income
                 )
+                if usn_income_no_vat:
+                    usn_income_no_vat['owner_extra'] = owner_extra_income
+                    usn_income_no_vat['owner_extra_base'] = owner_extra_income_base
                 results.append(('УСН Доходы 6%', usn_income_no_vat, True))
-
-                # УСН Д-Р 15% — списание остатков влияет только на налоговую базу
-                usn_dr_no_vat = calculate_usn_dr_no_vat(
-                    revenue,
-                    total_expenses_base,
-                    insurance_total,
-                    stock_extra=stock_extra,
-                )
-                results.append(('УСН Д-Р 15%', usn_dr_no_vat, True))
 
                 # УСН Доходы 6% + НДС 5% — остатки не учитываются, НДС 5% без вычетов
                 usn_income_5 = calculate_usn_income(
                     revenue,
-                    total_expenses_base,
-                    insurance_total,
+                    total_expenses_income_regime,
+                    insurance_total_income,
                     5,
                     vat_purchases_percent,
                     cost_of_goods,
                 )
+                if usn_income_5:
+                    usn_income_5['owner_extra'] = owner_extra_income
+                    usn_income_5['owner_extra_base'] = owner_extra_income_base
                 results.append(('УСН Доходы 6% + НДС 5%', usn_income_5, True))
+
+                insurance_total_profit = insurance_standard + owner_extra_profit
+
+                # УСН Д-Р 15% — списание остатков влияет только на налоговую базу
+                usn_dr_no_vat = calculate_usn_dr_no_vat(
+                    revenue,
+                    total_expenses_profit_regime,
+                    insurance_total_profit,
+                    stock_extra=stock_extra,
+                )
+                if usn_dr_no_vat:
+                    usn_dr_no_vat['owner_extra'] = owner_extra_profit
+                    usn_dr_no_vat['owner_extra_base'] = owner_extra_profit_base
+                results.append(('УСН Д-Р 15%', usn_dr_no_vat, True))
 
                 # УСН Д-Р 15% + НДС 5% — списание остатков только для налога, НДС 5% без вычетов
                 usn_dr_5 = calculate_usn_income_minus_expenses(
                     revenue,
-                    total_expenses_base,
-                    insurance_total,
+                    total_expenses_profit_regime,
+                    insurance_total_profit,
                     5,
                     vat_purchases_percent,
                     cost_of_goods,
                     accumulated_vat_credit=0.0,  # при 5% накопленный НДС не применяется
                     stock_extra=stock_extra,
                 )
+                if usn_dr_5:
+                    usn_dr_5['owner_extra'] = owner_extra_profit
+                    usn_dr_5['owner_extra_base'] = owner_extra_profit_base
                 results.append(('УСН Д-Р 15% + НДС 5%', usn_dr_5, True))
 
                 # УСН Д-Р 15% + НДС 22% — списание остатков и накопленный НДС
                 usn_dr_22 = calculate_usn_income_minus_expenses(
                     revenue,
-                    total_expenses_base,
-                    insurance_total,
+                    total_expenses_profit_regime,
+                    insurance_total_profit,
                     22,
                     vat_purchases_percent,
                     cost_of_goods,
                     accumulated_vat_credit=vat_credit_to_apply,
                     stock_extra=stock_extra,
                 )
+                if usn_dr_22:
+                    usn_dr_22['owner_extra'] = owner_extra_profit
+                    usn_dr_22['owner_extra_base'] = owner_extra_profit_base
                 results.append(('УСН Д-Р 15% + НДС 22%', usn_dr_22, True))
 
                 # ОСНО + НДС 22% — списание остатков только для налога на прибыль
                 osno = calculate_osno(
                     revenue,
-                    total_expenses_base,
-                    insurance_total,
+                    total_expenses_profit_regime,
+                    insurance_total_profit,
                     vat_purchases_percent,
                     cost_of_goods,
                     accumulated_vat_credit=vat_credit_to_apply,
                     stock_extra=stock_extra,
                 )
+                if osno:
+                    osno['owner_extra'] = owner_extra_profit
+                    osno['owner_extra_base'] = owner_extra_profit_base
                 results.append(('ОСНО + НДС 22%', osno, True))
 
                 # Топ-5 режимов

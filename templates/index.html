@@ -604,8 +604,6 @@
                     data-other-expenses="{{ components.other_expenses or 0 }}"
                     data-annual-fot="{{ components.annual_fot or 0 }}"
                     data-insurance-standard="{{ components.insurance_standard or 0 }}"
-                    data-owner-extra-1p="{{ components.owner_extra_1p or 0 }}"
-                    data-owner-extra="{{ components.owner_extra_1p or 0 }}"
                     data-vat-purchases-percent="{{ components.vat_purchases_percent or 0 }}"
                     data-accumulated-vat-credit="{{ components.accumulated_vat_credit or 0 }}"
                     data-stock-extra="{{ components.stock_extra or 0 }}"
@@ -638,6 +636,8 @@
                                 data-total-burden="{{ data.total_burden }}"
                                 data-burden-percent="{{ '%.2f'|format(data.burden_percent) }}"
                                 data-net-profit="{{ data.net_profit }}"
+                                data-owner-extra="{{ data.owner_extra or 0 }}"
+                                data-owner-extra-base="{{ data.owner_extra_base or 0 }}"
                             {% endif %}
                         >
                             <td class="regime-name {% if not is_available %}unavailable{% endif %}">
@@ -671,7 +671,7 @@
             </div>
 
             <p style="margin-top: 20px; color: #808080; font-size: 13px;">
-                * Страховые взносы рассчитаны как 30% от ФОТ + 1% с доходов свыше 300 000 ₽ для всех режимов, кроме АУСН (0%).<br>
+                * Страховые взносы рассчитаны как 30% от ФОТ + дополнительный 1% с превышения базы свыше 300 000 ₽ (для режимов «доходы» — с выручки, для «доходы минус расходы» и ОСНО — с прибыли).<br>
                 * АУСН доступен только при выручке до 60 млн ₽ в год и до 5 сотрудников.
             </p>
         </div>
@@ -895,7 +895,6 @@
         const baseOther     = parseFloat(ds.otherExpenses || 0);
         const baseFot       = parseFloat(ds.annualFot || 0);
         const baseInsurStd  = parseFloat(ds.insuranceStandard || 0);
-        const baseOwner1p   = parseFloat(ds.ownerExtra || ds.ownerExtra1p || 0);
         const vatPurchasesPercent = parseFloat(ds.vatPurchasesPercent || 0);
         const accumulatedVatCredit = parseFloat(ds.accumulatedVatCredit || 0);
         const stockExtra   = parseFloat(ds.stockExtra || 0);
@@ -920,6 +919,8 @@
             const totalBurden  = data.totalBurden;
             const burdenPct    = data.burdenPercent;
             const netProfit    = data.netProfit;
+            const ownerExtra   = data.ownerExtra || 0;
+            const ownerExtraBase = data.ownerExtraBase || 0;
 
             const isAusn = regime.includes('АУСН');
             const isUsnIncomeNoVat = regime === 'УСН Доходы 6%' || regime.includes('УСН Доходы 6% (общепит)');
@@ -967,8 +968,8 @@
                     `${fmtMoney(baseFot)} ₽ (ФОТ)`,
                     `${fmtMoney(baseInsurStd)} ₽ (страховые взносы 30% от ФОТ)`
                 ];
-                if (baseOwner1p > 0) {
-                    parts.push(`${fmtMoney(baseOwner1p)} ₽ (взнос 1% с доходов свыше 300 000 ₽)`);
+                if (ownerExtra > 0) {
+                    parts.push(`${fmtMoney(ownerExtra)} ₽ (взнос 1% с превышения базы свыше 300 000 ₽)`);
                 }
                 // Остатки товара учитываются только в определённых режимах
                 canShowStockExtra =
@@ -1088,10 +1089,9 @@
                     parts.push(`30% от ФОТ = ${fmtMoney(baseFot)} ₽ × 30% = ${fmtMoney(baseInsurStd)} ₽`);
                 }
                 let extraNote = '';
-                if (baseOwner1p > 0) {
-                    const excessRevenue = Math.max(revenue - 300000, 0);
-                    parts.push(`1% с доходов свыше 300 000 ₽ = ${fmtMoney(excessRevenue)} ₽ × 1% = ${fmtMoney(baseOwner1p)} ₽`);
-                    extraNote = ' Дополнительно включён взнос 1% с доходов свыше 300 000 ₽.';
+                if (ownerExtra > 0) {
+                    parts.push(`1% с базы свыше 300 000 ₽ = ${fmtMoney(ownerExtraBase)} ₽ × 1% = ${fmtMoney(ownerExtra)} ₽`);
+                    extraNote = ' Дополнительно включён взнос 1% по правилам для ИП.';
                 }
                 lines.push(
                     `<p><strong>Страховые взносы:</strong> ${parts.join(' + ')}; итого = ${fmtMoney(insurance)} ₽.${extraNote}</p>`
@@ -1133,6 +1133,8 @@
                 totalBurden:    parseFloat(row.dataset.totalBurden || 0),
                 burdenPercent:  parseFloat(row.dataset.burdenPercent || 0),
                 netProfit:      parseFloat(row.dataset.netProfit || 0),
+                ownerExtra:     parseFloat(row.dataset.ownerExtra || 0),
+                ownerExtraBase: parseFloat(row.dataset.ownerExtraBase || 0),
             };
 
             const detailsRow = document.createElement('tr');

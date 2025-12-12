@@ -151,6 +151,18 @@
             margin-top: 40px;
         }
 
+        .results-note {
+            background-color: #131313;
+            border: 1px solid #2a2a2a;
+            border-left: 3px solid #4a9eff;
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin-bottom: 25px;
+            color: #c8c8c8;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
         .results-title {
             font-size: 20px;
             margin-bottom: 20px;
@@ -332,6 +344,12 @@
                         <label for="rent">Аренда в год, ₽</label>
                         <input type="number" id="rent" name="rent" step="0.01"
                                value="{{ form_data.rent if form_data else '0' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fixed_contrib">Фиксированный взнос за ИП в год, ₽</label>
+                        <input type="number" id="fixed_contrib" name="fixed_contrib" step="0.01" min="0"
+                               value="{{ form_data.fixed_contrib if form_data else '57390' }}">
                     </div>
 
                     {% set transition_mode = form_data.transition_mode | default('none') %}
@@ -570,6 +588,14 @@
             </form>
         </div>
 
+        {% if results %}
+        <div class="results-note">
+            В расчётах предполагается, что ИП платит фиксированный взнос за себя в размере
+            <strong>{{ format_number(components.fixed_contrib or 0) }}</strong> ₽ в год.
+            Этот платёж обязателен для всех рассматриваемых режимов и включён в общую налоговую нагрузку.
+        </div>
+        {% endif %}
+
         {% if top_results %}
         <div class="results-section">
             <h2 class="results-title">Топ-5 режимов с минимальной налоговой нагрузкой</h2>
@@ -611,6 +637,7 @@
                     data-other-expenses="{{ components.other_expenses or 0 }}"
                     data-annual-fot="{{ components.annual_fot or 0 }}"
                     data-insurance-standard="{{ components.insurance_standard or 0 }}"
+                    data-fixed-contrib="{{ components.fixed_contrib or 0 }}"
                     data-vat-purchases-percent="{{ components.vat_purchases_percent or 0 }}"
                     data-accumulated-vat-credit="{{ components.accumulated_vat_credit or 0 }}"
                     data-stock-extra="{{ components.stock_extra or 0 }}"
@@ -650,6 +677,8 @@
                                 data-tax-initial="{{ data.tax_initial or 0 }}"
                                 data-tax-reduction="{{ data.tax_reduction or 0 }}"
                                 data-tax-reduction-limit="{{ data.tax_reduction_limit or 0 }}"
+                                data-fixed-contrib="{{ data.fixed_contrib or 0 }}"
+                                data-fixed-reduction="{{ data.fixed_contrib_reduction or 0 }}"
                             {% endif %}
                         >
                             <td class="regime-name {% if not is_available %}unavailable{% endif %}">
@@ -683,7 +712,7 @@
             </div>
 
             <p style="margin-top: 20px; color: #808080; font-size: 13px;">
-                * Страховые взносы рассчитаны как 30% от ФОТ + дополнительный 1% с превышения базы свыше 300 000 ₽ (для режимов «доходы» — с выручки, для «доходы минус расходы» и ОСНО — с прибыли).<br>
+                * Страховые взносы рассчитаны как 30% от ФОТ + дополнительный 1% с превышения базы свыше 300 000 ₽ (для режимов «доходы» — с выручки, для «доходы минус расходы» и ОСНО — с прибыли) + фиксированный взнос за ИП, указанный во вводных данных.<br>
                 * АУСН доступен только при выручке до 60 млн ₽ в год и до 5 сотрудников.
             </p>
         </div>
@@ -907,6 +936,7 @@
         const baseOther     = parseFloat(ds.otherExpenses || 0);
         const baseFot       = parseFloat(ds.annualFot || 0);
         const baseInsurStd  = parseFloat(ds.insuranceStandard || 0);
+        const baseFixedContrib = parseFloat(ds.fixedContrib || 0);
         const vatPurchasesPercent = parseFloat(ds.vatPurchasesPercent || 0);
         const accumulatedVatCredit = parseFloat(ds.accumulatedVatCredit || 0);
         const tableStockExtra   = parseFloat(ds.stockExtra || 0);
@@ -937,6 +967,7 @@
             const baseRent = params.baseRent || 0;
             const baseOther = params.baseOther || 0;
             const baseFot = params.baseFot || 0;
+            const fixedContrib = params.fixedContrib || 0;
             const burdenPercentText = fmtPercent(burdenPct);
 
             const lines = [
@@ -948,7 +979,7 @@
                 'Учитывается:',
                 '- Налог 8% от выручки.',
                 '- НДС не применяется.',
-                '- Страховые взносы не включаются в расчёт налоговой нагрузки (0 ₽).',
+                '- Фиксированный взнос ИП за себя не уменьшает налог, но добавляется к итоговой нагрузке отдельной строкой.',
                 '',
                 '## 2. Доходы',
                 `Доходы за период: ${fmtMoney(revenue)} ₽.`,
@@ -967,21 +998,22 @@
                 `${fmtMoney(revenue)} × 8% = ${fmtMoney(tax)} ₽.`,
                 '',
                 '## 5. Страховые взносы',
-                'В этом режиме страховые взносы ИП за себя не учитываются в налоговой нагрузке калькулятора (0 ₽).',
+                'Фиксированный взнос за ИП:',
+                `${fmtMoney(fixedContrib)} ₽ — платёж не влияет на налог АУСН и учитывается только в итоговой нагрузке.`,
                 '',
                 '## 6. Совокупная налоговая нагрузка',
                 'Сумма налогов и взносов:',
-                `${fmtMoney(tax)} + 0 ₽ + 0 ₽ = ${fmtMoney(totalBurden)} ₽.`,
+                `${fmtMoney(tax)} + 0 ₽ + ${fmtMoney(fixedContrib)} = ${fmtMoney(totalBurden)} ₽.`,
                 '',
                 'Доля от выручки:',
                 `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
                 '',
                 '## 7. Чистая прибыль',
                 'Формула:',
-                'доходы − расходы (без налогов) − налог АУСН.',
+                'доходы − расходы (без налогов) − налог АУСН − фиксированный взнос за ИП.',
                 '',
                 'Расчёт:',
-                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} = ${fmtMoney(netProfit)} ₽.`,
+                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} − ${fmtMoney(fixedContrib)} = ${fmtMoney(netProfit)} ₽.`,
             ];
 
             return renderMarkdown(lines);
@@ -998,6 +1030,7 @@
             const baseRent = params.baseRent || 0;
             const baseOther = params.baseOther || 0;
             const baseFot = params.baseFot || 0;
+            const fixedContrib = params.fixedContrib || 0;
             const burdenPercentText = fmtPercent(burdenPct);
             const annualBase = revenue - expenses;
             const positiveBase = Math.max(annualBase, 0);
@@ -1013,9 +1046,9 @@
                 'Режим: АУСН 20% (доходы минус расходы).',
                 '',
                 'Учитывается:',
-                '- Налог за каждый месяц считается как 20% от разницы между доходами и расходами, но не может быть меньше 3% от месячных доходов. В таблице показана сумма этого налога за весь год.',
+                '- Налог считается по итогам года: 20% от годовой прибыли, но не меньше 3% от годовой выручки (минимальный налог применяется один раз за год).',
                 '- НДС не применяется.',
-                '- Страховые взносы не включаются в расчёт налоговой нагрузки (0 ₽).',
+                '- Фиксированный взнос ИП за себя не уменьшает налог и добавляется к итоговой нагрузке отдельной строкой.',
                 '',
                 '## 2. Доходы',
                 `Доходы за период: ${fmtMoney(revenue)} ₽.`,
@@ -1041,24 +1074,25 @@
                 '',
                 'Фактический налог к уплате:',
                 `так как налог 20% (${fmtMoney(tax20)} ₽) ${comparisonText} минимального налога (${fmtMoney(minTax)} ₽), ` +
-                `к уплате принимается ${fmtMoney(chosenTax)} ₽. В таблице показана сумма налога по месяцам за год: ${fmtMoney(tax)} ₽.`,
+                `к уплате принимается ${fmtMoney(chosenTax)} ₽. В таблице показана именно эта сумма: ${fmtMoney(tax)} ₽ за год.`,
                 '',
                 '## 5. Страховые взносы',
-                'В этом режиме страховые взносы ИП за себя не учитываются в налоговой нагрузке калькулятора (0 ₽).',
+                'Фиксированный взнос за ИП:',
+                `${fmtMoney(fixedContrib)} ₽ — платёж не влияет на налоговую базу АУСН 20% и учитывается только в «налоговой нагрузке».`,
                 '',
                 '## 6. Совокупная налоговая нагрузка',
                 'Сумма налогов и взносов:',
-                `${fmtMoney(tax)} + 0 ₽ + 0 ₽ = ${fmtMoney(totalBurden)} ₽.`,
+                `${fmtMoney(tax)} + 0 ₽ + ${fmtMoney(fixedContrib)} = ${fmtMoney(totalBurden)} ₽.`,
                 '',
                 'Доля от выручки:',
                 `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
                 '',
                 '## 7. Чистая прибыль',
                 'Формула:',
-                'доходы − расходы (без налогов) − налог АУСН.',
+                'доходы − расходы (без налогов) − налог АУСН − фиксированный взнос за ИП.',
                 '',
                 'Расчёт:',
-                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} = ${fmtMoney(netProfit)} ₽.`,
+                `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} − ${fmtMoney(fixedContrib)} = ${fmtMoney(netProfit)} ₽.`,
             ];
 
             return renderMarkdown(lines);
@@ -1082,10 +1116,20 @@
             const baseInsurStd = params.baseInsurStd || 0;
             const ownerExtra = params.ownerExtra || 0;
             const ownerExtraBase = params.ownerExtraBase || 0;
+            const fixedContrib = params.fixedContrib || 0;
+            const fixedContribReduction = params.fixedContribReduction || 0;
             const burdenPercentText = fmtPercent(burdenPct);
             const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
-            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
+            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽ + ${fmtMoney(fixedContrib)} ₽`;
             const reductionLimited = baseInsurStd >= taxReductionLimit && Math.abs(taxReduction - taxReductionLimit) <= 0.01;
+            const hasEmployees = baseFot > 0;
+            const fixedReductionIntro = hasEmployees
+                ? 'Так как есть сотрудники, фиксированный взнос может уменьшить налог не более чем на 50% от начисленной суммы.'
+                : 'Сотрудников нет, поэтому фиксированный взнос может уменьшить налог вплоть до 0 ₽.';
+            const standardReductionApplied = Math.min(baseInsurStd, taxReductionLimit);
+            const fixedAvailable = hasEmployees
+                ? Math.max(taxReductionLimit - standardReductionApplied, 0)
+                : Math.max(taxInitial - standardReductionApplied, 0);
 
             const lines = [
                 '# Пояснение к расчёту налоговой нагрузки (УСН Доходы 6%)',
@@ -1096,7 +1140,7 @@
                 'Учитывается:',
                 '- Налог УСН 6% от выручки.',
                 '- НДС не применяется.',
-                '- Страховые взносы: 30% от ФОТ и 1% с доходов свыше 300 000 ₽.',
+                '- Страховые взносы: 30% от ФОТ, 1% с доходов свыше 300 000 ₽ и фиксированный взнос за ИП.',
                 '',
                 '## 2. Доходы',
                 `Доходы за период: ${fmtMoney(revenue)} ₽.`,
@@ -1111,6 +1155,9 @@
                 `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
                 `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
                 `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
+                `- Фиксированный взнос за ИП: ${fmtMoney(fixedContrib)} ₽.`,
+                '',
+                `Фиксированный взнос уменьшает налоговую базу (учтён в расходах) и добавлен к общей налоговой нагрузке как отдельный обязательный платёж.`,
                 '',
                 '## 4. Расчёт налога УСН 6%',
                 'Налог без уменьшения:',
@@ -1139,6 +1186,14 @@
 
             lines.push(
                 '',
+                'Фиксированный взнос за ИП:',
+                `Сумма взноса: ${fmtMoney(fixedContrib)} ₽.`,
+                fixedReductionIntro,
+                hasEmployees
+                    ? `Доступный лимит уменьшения за счёт фиксированного взноса: ${fmtMoney(fixedAvailable)} ₽, использовано ${fmtMoney(fixedContribReduction)} ₽.`
+                    : `В расчёте налог уменьшен на ${fmtMoney(fixedContribReduction)} ₽ за счёт этого взноса.`,
+                'Сам взнос при этом всё равно уплачивается и добавлен к общей налоговой нагрузке.',
+                '',
                 'Налог к уплате по УСН 6%:',
                 `${fmtMoney(taxInitial)} ₽ − ${fmtMoney(taxReduction)} ₽ = ${fmtMoney(tax)} ₽.`,
                 '',
@@ -1148,6 +1203,9 @@
                 '',
                 '1% с доходов свыше 300 000 ₽:',
                 `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
+                '',
+                'Фиксированный взнос за ИП:',
+                `${fmtMoney(fixedContrib)} ₽ (указан во вводных данных).`,
                 '',
                 'Итого страховых взносов:',
                 `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
@@ -1189,12 +1247,22 @@
             const baseInsurStd = params.baseInsurStd || 0;
             const ownerExtra = params.ownerExtra || 0;
             const ownerExtraBase = params.ownerExtraBase || 0;
+            const fixedContrib = params.fixedContrib || 0;
+            const fixedContribReduction = params.fixedContribReduction || 0;
             const burdenPercentText = fmtPercent(burdenPct);
             const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
-            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
+            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽ + ${fmtMoney(fixedContrib)} ₽`;
             const vatRate = 5;
             const vatCharged = revenue * vatRate / (100 + vatRate);
             const reductionLimited = baseInsurStd >= taxReductionLimit && Math.abs(taxReduction - taxReductionLimit) <= 0.01;
+            const hasEmployees = baseFot > 0;
+            const fixedReductionIntro = hasEmployees
+                ? 'Так как есть сотрудники, фиксированный взнос может уменьшить налог не более чем на 50% от начисленной суммы.'
+                : 'Сотрудников нет, поэтому фиксированный взнос может уменьшить налог вплоть до 0 ₽.';
+            const standardReductionApplied = Math.min(baseInsurStd, taxReductionLimit);
+            const fixedAvailable = hasEmployees
+                ? Math.max(taxReductionLimit - standardReductionApplied, 0)
+                : Math.max(taxInitial - standardReductionApplied, 0);
 
             const lines = [
                 '# Пояснение к расчёту налоговой нагрузки (УСН Доходы 6% + НДС 5%)',
@@ -1205,7 +1273,7 @@
                 'Учитывается:',
                 '- Налог УСН 6% от выручки.',
                 '- НДС 5% начисляется с выручки (без вычетов).',
-                '- Страховые взносы: 30% от ФОТ и 1% с доходов свыше 300 000 ₽.',
+                '- Страховые взносы: 30% от ФОТ, 1% с доходов свыше 300 000 ₽ и фиксированный взнос за ИП.',
                 '',
                 '## 2. Доходы',
                 `Доходы за период: ${fmtMoney(revenue)} ₽.`,
@@ -1248,6 +1316,14 @@
 
             lines.push(
                 '',
+                'Фиксированный взнос за ИП:',
+                `Сумма взноса: ${fmtMoney(fixedContrib)} ₽.`,
+                fixedReductionIntro,
+                hasEmployees
+                    ? `Доступный лимит уменьшения за счёт фиксированного взноса: ${fmtMoney(fixedAvailable)} ₽, использовано ${fmtMoney(fixedContribReduction)} ₽.`
+                    : `В расчёте налог уменьшен на ${fmtMoney(fixedContribReduction)} ₽ за счёт этого взноса.`,
+                'Сам взнос при этом остаётся отдельным обязательным платежом и добавлен к налоговой нагрузке.',
+                '',
                 'Налог к уплате по УСН 6%:',
                 `${fmtMoney(taxInitial)} ₽ − ${fmtMoney(taxReduction)} ₽ = ${fmtMoney(tax)} ₽.`,
                 '',
@@ -1271,6 +1347,9 @@
                 '',
                 '1% с доходов свыше 300 000 ₽:',
                 `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
+                '',
+                'Фиксированный взнос за ИП:',
+                `${fmtMoney(fixedContrib)} ₽ (указан во вводных данных).`,
                 '',
                 'Итого страховых взносов:',
                 `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
@@ -1309,6 +1388,7 @@
             const baseOther = params.baseOther || 0;
             const baseFot = params.baseFot || 0;
             const baseInsurStd = params.baseInsurStd || 0;
+            const fixedContrib = params.fixedContrib || 0;
             const stockExtra = params.stockExtra || 0;
             const usnRegularTax = params.usnRegularTax || 0;
             const usnMinTax = params.usnMinTax || 0;
@@ -1320,7 +1400,7 @@
             const vatRate = options.vatRate;
             const burdenPercentText = fmtPercent(burdenPct);
             const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
-            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
+            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽ + ${fmtMoney(fixedContrib)} ₽`;
             const stockPart = stockExtra > 0 ? stockExtra : 0;
             const usnBase = revenue - expenses - stockPart;
             const positiveBase = Math.max(usnBase, 0);
@@ -1340,7 +1420,7 @@
                         ? '- НДС 5%: начисляется с выручки без вычетов.'
                         : '- НДС 22%: начисленный с выручки минус входящий по закупкам.')
                     : '- НДС не применяется.',
-                '- Страховые взносы: 30% от ФОТ и 1% с доходов свыше 300 000 ₽.',
+                '- Страховые взносы: 30% от ФОТ, 1% с доходов свыше 300 000 ₽ и фиксированный взнос за ИП (учитывается и в расходах, и в итоговой нагрузке).',
                 '',
                 '## 2. Доходы',
                 `Доходы за период: ${fmtMoney(revenue)} ₽.`,
@@ -1448,6 +1528,9 @@
                 '1% с доходов свыше 300 000 ₽:',
                 `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
                 '',
+                'Фиксированный взнос за ИП:',
+                `${fmtMoney(fixedContrib)} ₽ (уменьшает налоговую базу и добавлен в итоговую нагрузку).`,
+                '',
                 'Итого страховых взносов:',
                 `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
                 '',
@@ -1512,6 +1595,7 @@
             const baseOther = params.baseOther || 0;
             const baseFot = params.baseFot || 0;
             const baseInsurStd = params.baseInsurStd || 0;
+            const fixedContrib = params.fixedContrib || 0;
             const vatPurchasesPercent = params.vatPurchasesPercent || 0;
             const stockExtra = params.stockExtra || 0;
             const accumulatedVatCredit = params.accumulatedVatCredit || 0;
@@ -1526,7 +1610,7 @@
             const vatDeductible = purchasesBase * vatRate / (100 + vatRate);
             const burdenPercentText = fmtPercent(burdenPct);
             const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
-            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽`;
+            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽ + ${fmtMoney(fixedContrib)} ₽`;
             const creditPart = transitionMode === 'vat' && accumulatedVatCredit > 0
                 ? ` − ${fmtMoney(accumulatedVatCredit)} ₽ (накопленный НДС)`
                 : '';
@@ -1540,7 +1624,7 @@
                 'Учитывается:',
                 '- НДС 22%: начисленный с выручки минус входящий по закупкам.',
                 '- Налог на прибыль 25% с базы после расходов, НДС и списания остатков (если применимо).',
-                '- Страховые взносы: 30% от ФОТ и 1% с доходов свыше 300 000 ₽.',
+                '- Страховые взносы: 30% от ФОТ, 1% с доходов свыше 300 000 ₽ и фиксированный взнос за ИП (учтён в расходах и добавлен в нагрузку).',
                 '',
                 '## 2. Доходы',
                 `Доходы за период: ${fmtMoney(revenue)} ₽.`,
@@ -1555,6 +1639,9 @@
                 `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
                 `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
                 `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
+                `- Фиксированный взнос за ИП: ${fmtMoney(fixedContrib)} ₽.`,
+                '',
+                `Фиксированный взнос уменьшает налоговую базу по налогу на прибыль и дополнительно учтён как обязательный платёж.`,
             ];
 
             if (stockPart > 0) {
@@ -1608,6 +1695,9 @@
                 '1% с доходов свыше 300 000 ₽:',
                 `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
                 '',
+                'Фиксированный взнос за ИП:',
+                `${fmtMoney(fixedContrib)} ₽ (учитывается в расходах и добавлен к нагрузке).`,
+                '',
                 'Итого страховых взносов:',
                 `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
                 '',
@@ -1642,8 +1732,8 @@
             const ownerExtraBase = data.ownerExtraBase || 0;
 
             const isAusn = regime.includes('АУСН');
-            const isUsnIncomeNoVat = regime === 'УСН Доходы 6%' || regime.includes('УСН Доходы 6% (общепит)');
-            const isUsnDrNoVat = regime === 'УСН Д-Р 15%' || regime.includes('УСН Д-Р 15% (общепит)');
+            const isUsnIncomeNoVat = regime === 'УСН Доходы 6%' || regime.includes('УСН Доходы 6%');
+            const isUsnDrNoVat = regime === 'УСН Д-Р 15%' || regime.includes('УСН Д-Р 15%');
             const isUsnIncome5 = regime.includes('УСН Доходы 6% + НДС 5%');
             const isUsnDr5 = regime.includes('УСН Д-Р 15% + НДС 5%');
             const isUsnDr22 = regime.includes('УСН Д-Р 15% + НДС 22%');
@@ -1679,6 +1769,8 @@
                 taxInitial: data.taxInitial || 0,
                 taxReduction: data.taxReduction || 0,
                 taxReductionLimit: data.taxReductionLimit || 0,
+                fixedContrib: data.fixedContrib || baseFixedContrib,
+                fixedContribReduction: data.fixedContribReduction || 0,
             };
 
             if (regime.includes('АУСН 8')) {
@@ -1734,6 +1826,8 @@
                 taxInitial:     parseFloat(row.dataset.taxInitial || 0),
                 taxReduction:   parseFloat(row.dataset.taxReduction || 0),
                 taxReductionLimit: parseFloat(row.dataset.taxReductionLimit || 0),
+                fixedContrib:   parseFloat(row.dataset.fixedContrib || 0),
+                fixedContribReduction: parseFloat(row.dataset.fixedReduction || 0),
             };
 
             const detailsRow = document.createElement('tr');

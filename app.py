@@ -9,6 +9,7 @@ MONTH_KEYS = [
 ]
 
 THRESHOLD_1_PERCENT = 300_000
+DEFAULT_FIXED_CONTRIB = 57_390
 
 
 def calculate_owner_extra_income(revenue):
@@ -40,7 +41,7 @@ def _check_ausn_limits(revenue, employees):
     return revenue <= 60_000_000 and employees <= 5
 
 
-def calculate_ausn_8(revenue, total_expenses, employees):
+def calculate_ausn_8(revenue, total_expenses, employees, fixed_contrib=0.0):
     """
     АУСН 8% — объект «доходы».
     Налог = 8% от выручки, взносов нет, НДС нет.
@@ -51,11 +52,11 @@ def calculate_ausn_8(revenue, total_expenses, employees):
         return None
 
     tax = revenue * 0.08
-    insurance = 0
     vat = 0
+    insurance = fixed_contrib
 
     total_tax_burden = tax + vat + insurance
-    net_profit = revenue - total_expenses - tax
+    net_profit = revenue - total_expenses - tax - fixed_contrib
 
     return {
         'revenue': revenue,
@@ -66,10 +67,11 @@ def calculate_ausn_8(revenue, total_expenses, employees):
         'total_burden': total_tax_burden,
         'burden_percent': (total_tax_burden / revenue * 100) if revenue > 0 else 0,
         'net_profit': net_profit,
+        'fixed_contrib': fixed_contrib,
     }
 
 
-def calculate_ausn_20(revenue, total_expenses, employees):
+def calculate_ausn_20(revenue, total_expenses, employees, fixed_contrib=0.0):
     """
     АУСН 20% — объект «доходы минус расходы».
     Налог = 20% от (доходы - расходы), но не меньше 3% от доходов.
@@ -87,11 +89,11 @@ def calculate_ausn_20(revenue, total_expenses, employees):
     min_tax = revenue * 0.03
     tax = max(tax_by_base, min_tax)
 
-    insurance = 0
     vat = 0
+    insurance = fixed_contrib
 
     total_tax_burden = tax + vat + insurance
-    net_profit = revenue - total_expenses - tax
+    net_profit = revenue - total_expenses - tax - fixed_contrib
 
     return {
         'revenue': revenue,
@@ -102,6 +104,7 @@ def calculate_ausn_20(revenue, total_expenses, employees):
         'total_burden': total_tax_burden,
         'burden_percent': (total_tax_burden / revenue * 100) if revenue > 0 else 0,
         'net_profit': net_profit,
+        'fixed_contrib': fixed_contrib,
     }
 
 
@@ -113,59 +116,31 @@ def calculate_ausn_20_monthly(
     annual_fot,
     purchases_month_percents,
     employees,
+    fixed_contrib=0.0,
 ):
     """
-    АУСН 20% — помесячный расчёт.
+    АУСН 20% — расчёт по итогам года.
 
-    - Доходы по месяцам считаем равномерными (revenue / 12)
-    - Аренда, прочие, ФОТ — тоже равномерно по месяцам
-    - Себестоимость (закупки) распределяем по месяцам по введённым коэффициентам
-      (100 — обычный месяц, 200 — в 2 раза больше и т.д.), потом нормализуем
-    - Налог за год = сумма помесячных max(20% от (Д-Р), 3% от доходов месяца)
-    - На АУСН 1% свыше 300 000 ₽ не платится.
+    Налог = 20% от (годовые доходы − годовые расходы), но не меньше 3% от годовой
+    выручки. Минимальный налог применяется один раз за год. Параметр распределения
+    закупок оставлен для возможного дальнейшего развития, но на итоговый расчёт
+    сейчас не влияет.
     """
     if not _check_ausn_limits(revenue, employees):
         return None
 
-    # Годовые расходы для отчёта (как раньше, без взносов)
     total_expenses_year = cost_of_goods + rent + other_expenses + annual_fot
 
-    # Подготовка распределения коэффициентов
-    cleaned = [max(float(p or 0), 0.0) for p in purchases_month_percents]
-    total_weight = sum(cleaned)
-
-    if total_weight <= 0:
-        # Если пользователь всё занулил или не ввёл — считаем равномерно
-        shares = [1 / 12.0] * 12
-    else:
-        # Нормализуем, чтобы сумма долей = 1
-        shares = [p / total_weight for p in cleaned]
-
-    # Равномерные помесячные показатели
-    revenue_month = revenue / 12.0
-    rent_month = rent / 12.0
-    other_month = other_expenses / 12.0
-    fot_month = annual_fot / 12.0
-
-    total_tax = 0.0
-
-    for share in shares:
-        cost_month = cost_of_goods * share
-        expenses_month = cost_month + rent_month + other_month + fot_month
-
-        base = revenue_month - expenses_month
-        tax_by_base = max(base, 0) * 0.20
-        min_tax = revenue_month * 0.03
-        month_tax = max(tax_by_base, min_tax)
-
-        total_tax += month_tax
-
-    tax = total_tax
-    insurance = 0
+    tax_base = revenue - total_expenses_year
+    base_for_tax = max(tax_base, 0.0)
+    tax_by_base = base_for_tax * 0.20
+    min_tax = revenue * 0.03
+    tax = max(tax_by_base, min_tax)
     vat = 0
+    insurance = fixed_contrib
 
     total_tax_burden = tax + vat + insurance
-    net_profit = revenue - total_expenses_year - tax
+    net_profit = revenue - total_expenses_year - tax - fixed_contrib
 
     return {
         'revenue': revenue,
@@ -176,6 +151,8 @@ def calculate_ausn_20_monthly(
         'total_burden': total_tax_burden,
         'burden_percent': (total_tax_burden / revenue * 100) if revenue > 0 else 0,
         'net_profit': net_profit,
+        'ausn_tax_base': base_for_tax,
+        'fixed_contrib': fixed_contrib,
     }
 
 
@@ -187,13 +164,24 @@ def calculate_usn_income(
     vat_rate,
     purchases_with_vat_percent,
     cost_of_goods,
+    fixed_contrib=0.0,
+    has_employees=False,
 ):
     """Расчёт для УСН Доходы 6% + НДС"""
     tax_initial = revenue * 0.06
     reduction_base = insurance_standard
     max_reduction = tax_initial * 0.50
-    tax_reduction = min(reduction_base, max_reduction)
-    usn_tax = tax_initial - tax_reduction
+    reduction_from_standard = min(reduction_base, max_reduction)
+
+    if has_employees:
+        available_for_fixed = max(max_reduction - reduction_from_standard, 0)
+        reduction_from_fixed = min(fixed_contrib, available_for_fixed)
+    else:
+        max_without_standard = max(tax_initial - reduction_from_standard, 0)
+        reduction_from_fixed = min(fixed_contrib, max_without_standard)
+
+    tax_reduction = reduction_from_standard + reduction_from_fixed
+    usn_tax = max(tax_initial - tax_reduction, 0)
 
     vat_charged = revenue * vat_rate / (100 + vat_rate)
 
@@ -223,6 +211,8 @@ def calculate_usn_income(
         'tax_reduction': tax_reduction,
         'tax_reduction_limit': max_reduction,
         'tax_reduction_base': reduction_base,
+        'fixed_contrib': fixed_contrib,
+        'fixed_contrib_reduction': reduction_from_fixed,
     }
 
 
@@ -235,6 +225,7 @@ def calculate_usn_income_minus_expenses(
     cost_of_goods,
     accumulated_vat_credit=0.0,
     stock_extra=0.0,
+    fixed_contrib=0.0,
 ):
     """Расчёт для УСН Доходы минус расходы 15% + НДС"""
     usn_base = revenue - total_expenses - stock_extra
@@ -271,16 +262,33 @@ def calculate_usn_income_minus_expenses(
         'net_profit': net_profit,
         'usn_regular_tax': tax_regular,
         'usn_min_tax': min_tax,
+        'fixed_contrib': fixed_contrib,
     }
 
 
-def calculate_usn_income_no_vat(revenue, total_expenses, insurance, insurance_standard):
-    """УСН Доходы 6% без НДС (для общепита)"""
+def calculate_usn_income_no_vat(
+    revenue,
+    total_expenses,
+    insurance,
+    insurance_standard,
+    fixed_contrib=0.0,
+    has_employees=False,
+):
+    """УСН Доходы 6% без НДС"""
     tax_initial = revenue * 0.06
     reduction_base = insurance_standard
     max_reduction = tax_initial * 0.50
-    tax_reduction = min(reduction_base, max_reduction)
-    usn_tax = tax_initial - tax_reduction
+    reduction_from_standard = min(reduction_base, max_reduction)
+
+    if has_employees:
+        available_for_fixed = max(max_reduction - reduction_from_standard, 0)
+        reduction_from_fixed = min(fixed_contrib, available_for_fixed)
+    else:
+        max_without_standard = max(tax_initial - reduction_from_standard, 0)
+        reduction_from_fixed = min(fixed_contrib, max_without_standard)
+
+    tax_reduction = reduction_from_standard + reduction_from_fixed
+    usn_tax = max(tax_initial - tax_reduction, 0)
     vat_to_pay = 0
 
     total_tax_burden = usn_tax + vat_to_pay + insurance
@@ -299,11 +307,19 @@ def calculate_usn_income_no_vat(revenue, total_expenses, insurance, insurance_st
         'tax_reduction': tax_reduction,
         'tax_reduction_limit': max_reduction,
         'tax_reduction_base': reduction_base,
+        'fixed_contrib': fixed_contrib,
+        'fixed_contrib_reduction': reduction_from_fixed,
     }
 
 
-def calculate_usn_dr_no_vat(revenue, total_expenses, insurance, stock_extra=0.0):
-    """УСН Доходы минус расходы 15% без НДС (для общепита)"""
+def calculate_usn_dr_no_vat(
+    revenue,
+    total_expenses,
+    insurance,
+    stock_extra=0.0,
+    fixed_contrib=0.0,
+):
+    """УСН Доходы минус расходы 15% без НДС"""
     usn_base = revenue - total_expenses - stock_extra
     taxable_base = max(usn_base, 0)
     tax_regular = taxable_base * 0.15
@@ -325,6 +341,7 @@ def calculate_usn_dr_no_vat(revenue, total_expenses, insurance, stock_extra=0.0)
         'net_profit': net_profit,
         'usn_regular_tax': tax_regular,
         'usn_min_tax': min_tax,
+        'fixed_contrib': fixed_contrib,
     }
 
 
@@ -336,6 +353,7 @@ def calculate_osno(
     cost_of_goods,
     accumulated_vat_credit=0.0,
     stock_extra=0.0,
+    fixed_contrib=0.0,
 ):
     """Расчёт для ОСНО с НДС 22%"""
     vat_rate = 22
@@ -364,6 +382,7 @@ def calculate_osno(
         'total_burden': total_tax_burden,
         'burden_percent': (total_tax_burden / revenue * 100) if revenue > 0 else 0,
         'net_profit': net_profit,
+        'fixed_contrib': fixed_contrib,
     }
 
 
@@ -374,6 +393,7 @@ def index():
     form_data = {}
     top_results = None
     components = {}
+    fixed_contrib = DEFAULT_FIXED_CONTRIB
 
     if request.method == 'POST':
         try:
@@ -382,6 +402,7 @@ def index():
             cost_percent = float(request.form.get('cost_percent', 0))
             vat_purchases_percent = float(request.form.get('vat_purchases_percent', 0))
             rent = float(request.form.get('rent', 0))
+            fixed_contrib = float(request.form.get('fixed_contrib', DEFAULT_FIXED_CONTRIB))
 
             employees = int(request.form.get('employees', 0))
             salary = float(request.form.get('salary', 0))
@@ -423,6 +444,7 @@ def index():
                 or fot_annual < 0
                 or accumulated_vat_credit < 0
                 or stock_expense_amount < 0
+                or fixed_contrib < 0
                 or any(p < 0 for p in purchases_month_percents)
             ):
                 error = "Все значения должны быть неотрицательными"
@@ -443,6 +465,8 @@ def index():
                     annual_fot = fot_annual
                 else:
                     annual_fot = employees * salary * 12
+
+                has_employees = annual_fot > 0
 
                 # Страховые взносы 30% от ФОТ (для всех, кроме АУСН)
                 insurance_standard = annual_fot * 0.30
@@ -485,6 +509,7 @@ def index():
                     'other_expenses': other_expenses,
                     'annual_fot': annual_fot,
                     'insurance_standard': insurance_standard,
+                    'fixed_contrib': fixed_contrib,
                     'owner_extra_income': owner_extra_income,
                     'owner_extra_income_base': owner_extra_income_base,
                     'owner_extra_profit': owner_extra_profit,
@@ -496,14 +521,23 @@ def index():
                     'transition_mode': transition_mode,
                 }
 
-                total_expenses_income_regime = total_expenses_common + owner_extra_income
-                total_expenses_profit_regime = total_expenses_common + owner_extra_profit
+                total_expenses_income_regime = (
+                    total_expenses_common + owner_extra_income + fixed_contrib
+                )
+                total_expenses_profit_regime = (
+                    total_expenses_common + owner_extra_profit + fixed_contrib
+                )
 
                 # ---- Расчёт режимов ----
                 results = []
 
                 # АУСН 8% (без 30% взносов, без 1%, без остатков)
-                ausn_8 = calculate_ausn_8(revenue, total_expenses_ausn, employees)
+                ausn_8 = calculate_ausn_8(
+                    revenue,
+                    total_expenses_ausn,
+                    employees,
+                    fixed_contrib=fixed_contrib,
+                )
                 if ausn_8:
                     results.append(('АУСН 8%', ausn_8, True))
                 else:
@@ -518,6 +552,7 @@ def index():
                     annual_fot=annual_fot,
                     purchases_month_percents=purchases_month_percents,
                     employees=employees,
+                    fixed_contrib=fixed_contrib,
                 )
                 if ausn_20:
                     results.append(('АУСН 20%', ausn_20, True))
@@ -525,12 +560,16 @@ def index():
                     results.append(('АУСН 20% (нельзя применять — превышены лимиты)', None, False))
 
                 # УСН Доходы 6% (без НДС) — остатки не учитываются
-                insurance_total_income = insurance_standard + owner_extra_income
+                insurance_total_income = (
+                    insurance_standard + owner_extra_income + fixed_contrib
+                )
                 usn_income_no_vat = calculate_usn_income_no_vat(
                     revenue,
                     total_expenses_income_regime,
                     insurance_total_income,
                     insurance_standard,
+                    fixed_contrib=fixed_contrib,
+                    has_employees=has_employees,
                 )
                 if usn_income_no_vat:
                     usn_income_no_vat['owner_extra'] = owner_extra_income
@@ -546,13 +585,17 @@ def index():
                     5,
                     vat_purchases_percent,
                     cost_of_goods,
+                    fixed_contrib=fixed_contrib,
+                    has_employees=has_employees,
                 )
                 if usn_income_5:
                     usn_income_5['owner_extra'] = owner_extra_income
                     usn_income_5['owner_extra_base'] = owner_extra_income_base
                 results.append(('УСН Доходы 6% + НДС 5%', usn_income_5, True))
 
-                insurance_total_profit = insurance_standard + owner_extra_profit
+                insurance_total_profit = (
+                    insurance_standard + owner_extra_profit + fixed_contrib
+                )
 
                 # УСН Д-Р 15% — списание остатков влияет только на налоговую базу
                 usn_dr_no_vat = calculate_usn_dr_no_vat(
@@ -560,6 +603,7 @@ def index():
                     total_expenses_profit_regime,
                     insurance_total_profit,
                     stock_extra=stock_extra,
+                    fixed_contrib=fixed_contrib,
                 )
                 if usn_dr_no_vat:
                     usn_dr_no_vat['owner_extra'] = owner_extra_profit
@@ -576,6 +620,7 @@ def index():
                     cost_of_goods,
                     accumulated_vat_credit=0.0,  # при 5% накопленный НДС не применяется
                     stock_extra=stock_extra,
+                    fixed_contrib=fixed_contrib,
                 )
                 if usn_dr_5:
                     usn_dr_5['owner_extra'] = owner_extra_profit
@@ -592,6 +637,7 @@ def index():
                     cost_of_goods,
                     accumulated_vat_credit=vat_credit_to_apply,
                     stock_extra=stock_extra,
+                    fixed_contrib=fixed_contrib,
                 )
                 if usn_dr_22:
                     usn_dr_22['owner_extra'] = owner_extra_profit
@@ -607,6 +653,7 @@ def index():
                     cost_of_goods,
                     accumulated_vat_credit=vat_credit_to_apply,
                     stock_extra=stock_extra,
+                    fixed_contrib=fixed_contrib,
                 )
                 if osno:
                     osno['owner_extra'] = owner_extra_profit
@@ -626,6 +673,7 @@ def index():
                 'cost_percent': cost_percent,
                 'vat_purchases_percent': vat_purchases_percent,
                 'rent': rent,
+                'fixed_contrib': fixed_contrib,
                 'employees': employees,
                 'salary': salary,
                 'fot_mode': fot_mode,

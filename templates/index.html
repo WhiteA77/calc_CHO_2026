@@ -679,6 +679,10 @@
                                 data-tax-reduction-limit="{{ data.tax_reduction_limit or 0 }}"
                                 data-fixed-contrib="{{ data.fixed_contrib or 0 }}"
                                 data-fixed-reduction="{{ data.fixed_contrib_reduction or 0 }}"
+                                data-ndfl-base="{{ data.ndfl_base or 0 }}"
+                                data-ndfl-tax="{{ data.ndfl_tax or data.tax or 0 }}"
+                                data-income-no-vat="{{ data.income_without_vat or 0 }}"
+                                data-expenses-no-vat="{{ data.expenses_without_vat or 0 }}"
                             {% endif %}
                         >
                             <td class="regime-name {% if not is_available %}unavailable{% endif %}">
@@ -1119,7 +1123,6 @@
             const fixedContrib = params.fixedContrib || 0;
             const fixedContribReduction = params.fixedContribReduction || 0;
             const burdenPercentText = fmtPercent(burdenPct);
-            const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
             const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽ + ${fmtMoney(fixedContrib)} ₽`;
             const reductionLimited = baseInsurStd >= taxReductionLimit && Math.abs(taxReduction - taxReductionLimit) <= 0.01;
             const hasEmployees = baseFot > 0;
@@ -1154,6 +1157,11 @@
                 `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
                 `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
                 `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
+                ...(
+                    stockPart > 0
+                        ? [`- Списание остатков товара: ${fmtMoney(stockPart)} ₽.`]
+                        : []
+                ),
                 `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
                 `- Фиксированный взнос за ИП: ${fmtMoney(fixedContrib)} ₽.`,
                 '',
@@ -1202,7 +1210,7 @@
                 `${fmtMoney(baseFot)} × 30% = ${fmtMoney(baseInsurStd)} ₽.`,
                 '',
                 '1% с доходов свыше 300 000 ₽:',
-                `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
+                `${ownerBaseMinusThresholdExpr} × 1% = ${fmtMoney(ownerExtra)} ₽.`,
                 '',
                 'Фиксированный взнос за ИП:',
                 `${fmtMoney(fixedContrib)} ₽ (указан во вводных данных).`,
@@ -1616,10 +1624,10 @@
                 : '';
 
             const lines = [
-                '# Пояснение к расчёту налоговой нагрузки (ОСНО + НДС 22%)',
+                '# Пояснение к расчёту налоговой нагрузки (ОСНО + НДС 22% (ООО))',
                 '',
                 '## 1. Вводные данные',
-                'Режим: ОСНО + НДС 22%.',
+                'Режим: ОСНО + НДС 22% (ООО).',
                 '',
                 'Учитывается:',
                 '- НДС 22%: начисленный с выручки минус входящий по закупкам.',
@@ -1719,6 +1727,162 @@
             return renderMarkdown(lines);
         }
 
+        function buildOsnoIpMarkdown(params) {
+            const revenue = params.revenue || 0;
+            const expenses = params.expenses || 0;
+            const ndflTax = params.ndflTax || params.tax || 0;
+            const vat = params.vat || 0;
+            const insurance = params.insurance || 0;
+            const totalBurden = params.totalBurden || 0;
+            const burdenPct = params.burdenPct || 0;
+            const netProfit = params.netProfit || 0;
+            const baseCost = params.baseCost || 0;
+            const baseRent = params.baseRent || 0;
+            const baseOther = params.baseOther || 0;
+            const baseFot = params.baseFot || 0;
+            const baseInsurStd = params.baseInsurStd || 0;
+            const fixedContrib = params.fixedContrib || 0;
+            const vatPurchasesPercent = params.vatPurchasesPercent || 0;
+            const stockExtra = params.stockExtra || 0;
+            const accumulatedVatCredit = params.accumulatedVatCredit || 0;
+            const transitionMode = params.transitionMode || 'none';
+            const incomeWithoutVat = params.incomeWithoutVat || 0;
+            const expensesWithoutVat = params.expensesWithoutVat || 0;
+
+            const stockPart = stockExtra > 0 ? stockExtra : 0;
+            const vatRate = 22;
+            const vatCharged = revenue * vatRate / (100 + vatRate);
+            const purchasesBase = baseCost * (vatPurchasesPercent / 100);
+            const vatDeductible = purchasesBase * vatRate / (100 + vatRate);
+            const creditPart = transitionMode === 'vat' && accumulatedVatCredit > 0
+                ? ` − ${fmtMoney(accumulatedVatCredit)} ₽ (накопленный НДС)`
+                : '';
+            const baseWithout1pct = Math.max(incomeWithoutVat - expensesWithoutVat - fixedContrib, 0);
+            const excessOverThreshold = Math.max(baseWithout1pct - 300000, 0);
+            const extra1pctCalc = excessOverThreshold * 0.01;
+            const ndflBaseCalc = Math.max(baseWithout1pct - extra1pctCalc, 0);
+            const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(extra1pctCalc)} ₽ + ${fmtMoney(fixedContrib)} ₽`;
+            const burdenPercentText = fmtPercent(burdenPct);
+            const ndflEffective = ndflBaseCalc > 0 ? (ndflTax / ndflBaseCalc * 100) : 0;
+            const ndflScale = [
+                'до 2 400 000 ₽ — 13%',
+                '2 400 001–5 000 000 ₽ — 15%',
+                '5 000 001–20 000 000 ₽ — 18%',
+                '20 000 001–50 000 000 ₽ — 20%',
+                'свыше 50 000 000 ₽ — 22%',
+            ];
+
+            const lines = [
+                '# Пояснение к расчёту налоговой нагрузки (ОСНО + НДС 22% (ИП))',
+                '',
+                '## 1. Вводные данные',
+                'Режим: ОСНО + НДС 22% (ИП).',
+                '',
+                'Учитывается:',
+                '- НДС рассчитывается так же, как у юридических лиц: начисление с выручки и вычеты по закупкам.',
+                '- Вместо налога на прибыль рассчитывается НДФЛ ИП по прогрессивной шкале.',
+                '- В налоговую базу по НДФЛ включены расходы без НДС, фиксированный взнос ИП и дополнительный 1% взнос.',
+                '',
+                '## 2. Доходы',
+                `Выручка (с НДС): ${fmtMoney(revenue)} ₽.`,
+                `Доходы без НДС для расчёта НДФЛ: ${fmtMoney(incomeWithoutVat)} ₽.`,
+                '',
+                '## 3. Расходы (без НДС)',
+                `Расходы, уменьшающие базу НДФЛ: ${fmtMoney(expensesWithoutVat)} ₽.`,
+                '',
+                'Структура расходов:',
+                `- Себестоимость (без НДС по облагаемым закупкам): ${fmtMoney(baseCost - vatDeductible)} ₽.`,
+                `- Аренда: ${fmtMoney(baseRent)} ₽.`,
+                `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
+                `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
+                `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
+                ...(stockPart > 0 ? [`- Списание остатков товара: ${fmtMoney(stockPart)} ₽.`] : []),
+                '',
+                '## 4. База ИП и взнос 1% свыше 300 000 ₽',
+                '1. База ИП без учёта 1%:',
+                `   ${fmtMoney(incomeWithoutVat)} − ${fmtMoney(expensesWithoutVat)} − ${fmtMoney(fixedContrib)} = ${fmtMoney(baseWithout1pct)} ₽.`,
+                ...(excessOverThreshold > 0 ? [
+                    '',
+                    '2. Превышение над 300 000 ₽:',
+                    `   ${fmtMoney(baseWithout1pct)} − 300 000 ₽ = ${fmtMoney(excessOverThreshold)} ₽.`,
+                    '',
+                    '3. Дополнительный взнос 1%:',
+                    `   ${fmtMoney(excessOverThreshold)} × 1% = ${fmtMoney(extra1pctCalc)} ₽.`,
+                    '',
+                    '4. База для НДФЛ:',
+                    `   ${fmtMoney(baseWithout1pct)} − ${fmtMoney(extra1pctCalc)} = ${fmtMoney(ndflBaseCalc)} ₽.`,
+                    '',
+                ] : [
+                    '',
+                    '2. База не превышает 300 000 ₽, взнос 1% = 0 ₽.',
+                    '',
+                    '3. База для НДФЛ:',
+                    `   ${fmtMoney(baseWithout1pct)} = ${fmtMoney(ndflBaseCalc)} ₽.`,
+                    '',
+                ]),
+                '## 5. Расчёт НДФЛ по прогрессивной шкале',
+                `Ступени (2026): ${ndflScale.join(', ')}.`,
+                '',
+                `Итоговый НДФЛ: ${fmtMoney(ndflTax)} ₽ (эффективная ставка ${fmtPercent(ndflEffective)}%).`,
+                '',
+                '## 6. Расчёт НДС 22%',
+                '',
+                '### 6.1. НДС к начислению',
+                `${fmtMoney(revenue)} × 22 / 122 = ${fmtMoney(vatCharged)} ₽.`,
+                '',
+                '### 6.2. НДС к вычету по закупкам',
+                `Себестоимость с НДС: ${fmtMoney(baseCost)} ₽.`,
+                `Доля закупок с НДС: ${fmtPercent(vatPurchasesPercent)}%.`,
+                '',
+                'НДС к вычету:',
+                `${fmtMoney(baseCost)} × ${fmtPercent(vatPurchasesPercent)}% × 22 / 122 = ${fmtMoney(vatDeductible)} ₽.`,
+            ];
+
+            if (transitionMode === 'vat' && accumulatedVatCredit > 0) {
+                lines.push(
+                    '',
+                    `Дополнительный вычет при переходе: накопленный входящий НДС = ${fmtMoney(accumulatedVatCredit)} ₽.`
+                );
+            }
+
+            lines.push(
+                '',
+                '### 6.3. НДС к уплате',
+                `${fmtMoney(vatCharged)} − ${fmtMoney(vatDeductible)}${creditPart} = ${fmtMoney(vat)} ₽.`,
+                '',
+                '## 7. Страховые взносы',
+                '30% от ФОТ:',
+                `${fmtMoney(baseFot)} × 30% = ${fmtMoney(baseInsurStd)} ₽.`,
+                '',
+                '1% с доходов свыше 300 000 ₽:',
+                ...(excessOverThreshold > 0
+                    ? [`   ${fmtMoney(excessOverThreshold)} × 1% = ${fmtMoney(extra1pctCalc)} ₽.`]
+                    : ['   превышения нет, взнос 1% = 0 ₽.']),
+                '',
+                'Фиксированный взнос ИП:',
+                `${fmtMoney(fixedContrib)} ₽.`,
+                '',
+                'Итого страховых взносов:',
+                `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
+                '',
+                '## 8. Совокупная налоговая нагрузка',
+                'Сумма налогов и взносов:',
+                `${fmtMoney(ndflTax)} + ${fmtMoney(vat)} + ${fmtMoney(insurance)} = ${fmtMoney(totalBurden)} ₽.`,
+                '',
+                'Доля от выручки:',
+                `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
+                '',
+                '## 9. Чистая прибыль',
+                'Формула:',
+                'доходы без НДС − расходы без НДС − НДФЛ − фиксированный взнос − взнос 1%.',
+                '',
+                'Расчёт:',
+                `${fmtMoney(incomeWithoutVat)} − ${fmtMoney(expensesWithoutVat)} − ${fmtMoney(ndflTax)} − ${fmtMoney(extra1pctCalc)} − ${fmtMoney(fixedContrib)} = ${fmtMoney(netProfit)} ₽.`,
+            );
+
+            return renderMarkdown(lines);
+        }
+
         function buildExplanation(regime, data) {
             const revenue      = data.revenue;
             const expenses     = data.expenses;
@@ -1737,12 +1901,13 @@
             const isUsnIncome5 = regime.includes('УСН Доходы 6% + НДС 5%');
             const isUsnDr5 = regime.includes('УСН Д-Р 15% + НДС 5%');
             const isUsnDr22 = regime.includes('УСН Д-Р 15% + НДС 22%');
-            const isOsno = regime.includes('ОСНО');
+            const isOsnoCompany = regime.includes('ОСНО + НДС 22% (ООО)');
+            const isOsnoIp = regime.includes('ОСНО + НДС 22% (ИП)');
 
             const stockApplicable =
                 transitionMode === 'stock'
                 && tableStockExtra > 0
-                && (isUsnDrNoVat || isUsnDr5 || isUsnDr22 || isOsno);
+                && (isUsnDrNoVat || isUsnDr5 || isUsnDr22 || isOsnoCompany || isOsnoIp);
 
             const builderParams = {
                 revenue: revenue,
@@ -1771,6 +1936,10 @@
                 taxReductionLimit: data.taxReductionLimit || 0,
                 fixedContrib: data.fixedContrib || baseFixedContrib,
                 fixedContribReduction: data.fixedContribReduction || 0,
+                ndflTax: data.ndflTax || 0,
+                ndflBase: data.ndflBase || 0,
+                incomeWithoutVat: data.incomeNoVat || 0,
+                expensesWithoutVat: data.expensesNoVat || 0,
             };
 
             if (regime.includes('АУСН 8')) {
@@ -1794,8 +1963,11 @@
             if (isUsnDr22) {
                 return buildUsnDr22Markdown(builderParams);
             }
-            if (isOsno) {
+            if (isOsnoCompany) {
                 return buildOsnoMarkdown(builderParams);
+            }
+            if (isOsnoIp) {
+                return buildOsnoIpMarkdown(builderParams);
             }
 
             throw new Error(`Неизвестный режим для пояснения: ${regime}`);
@@ -1828,6 +2000,10 @@
                 taxReductionLimit: parseFloat(row.dataset.taxReductionLimit || 0),
                 fixedContrib:   parseFloat(row.dataset.fixedContrib || 0),
                 fixedContribReduction: parseFloat(row.dataset.fixedReduction || 0),
+                ndflBase:       parseFloat(row.dataset.ndflBase || 0),
+                ndflTax:        parseFloat(row.dataset.ndflTax || 0),
+                incomeNoVat:    parseFloat(row.dataset.incomeNoVat || 0),
+                expensesNoVat:  parseFloat(row.dataset.expensesNoVat || 0),
             };
 
             const detailsRow = document.createElement('tr');

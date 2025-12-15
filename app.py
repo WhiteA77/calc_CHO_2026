@@ -10,6 +10,13 @@ MONTH_KEYS = [
 
 THRESHOLD_1_PERCENT = 300_000
 DEFAULT_FIXED_CONTRIB = 57_390
+NDFL_BRACKETS_2026 = [
+    (2_400_000, 0.13),
+    (5_000_000, 0.15),
+    (20_000_000, 0.18),
+    (50_000_000, 0.20),
+    (None, 0.22),
+]
 
 
 def calculate_owner_extra_income(revenue):
@@ -27,6 +34,30 @@ def calculate_owner_extra_profit(revenue, expenses_without_self_contrib):
     base_before_threshold = revenue - expenses_without_self_contrib
     taxable = max(0.0, base_before_threshold - THRESHOLD_1_PERCENT)
     return taxable * 0.01, base_before_threshold
+
+
+def calculate_progressive_ndfl(base, brackets=NDFL_BRACKETS_2026):
+    """
+    Рассчитывает НДФЛ по прогрессивной шкале.
+
+    Шкала задаётся списком порогов и ставок. Последняя ступень должна иметь
+    limit=None, чтобы охватить всю оставшуюся базу.
+    """
+    taxable = max(float(base or 0), 0.0)
+    tax = 0.0
+    prev_limit = 0.0
+
+    for limit, rate in brackets:
+        if taxable <= prev_limit:
+            break
+        upper_bound = taxable if limit is None else min(taxable, float(limit))
+        portion = upper_bound - prev_limit
+        if portion <= 0:
+            break
+        tax += portion * rate
+        prev_limit = upper_bound
+
+    return tax
 
 
 def format_number(num):
@@ -386,6 +417,81 @@ def calculate_osno(
     }
 
 
+def calculate_osno_ip(
+    revenue,
+    base_total_expenses,
+    purchases_with_vat_percent,
+    cost_of_goods,
+    rent,
+    other_expenses,
+    annual_fot,
+    insurance_standard,
+    fixed_contrib=0.0,
+    accumulated_vat_credit=0.0,
+    stock_extra=0.0,
+):
+    """Расчёт для ОСНО (ИП) с прогрессивным НДФЛ"""
+    vat_rate = 22
+
+    vat_charged = revenue * vat_rate / (100 + vat_rate)
+
+    purchases_base = cost_of_goods * purchases_with_vat_percent / 100
+    vat_deductible = purchases_base * vat_rate / (100 + vat_rate)
+
+    vat_to_pay = max(vat_charged - vat_deductible - accumulated_vat_credit, 0)
+
+    income_without_vat = revenue - vat_charged
+    stock_part = stock_extra if stock_extra > 0 else 0.0
+
+    base_expenses_without_vat = (
+        (cost_of_goods - vat_deductible)
+        + rent
+        + other_expenses
+        + annual_fot
+        + insurance_standard
+        + stock_part
+    )
+
+    # База для расчёта 1% (без самого 1% и без фиксированного взноса)
+    base_for_one_percent = income_without_vat - base_expenses_without_vat - fixed_contrib
+    base_for_one_percent = max(base_for_one_percent, 0.0)
+    extra_one_percent = max(base_for_one_percent - THRESHOLD_1_PERCENT, 0.0) * 0.01
+
+    ndfl_base = base_for_one_percent - extra_one_percent
+    ndfl_base = max(ndfl_base, 0.0)
+    ndfl_tax = calculate_progressive_ndfl(ndfl_base)
+
+    insurance_total = insurance_standard + fixed_contrib + extra_one_percent
+
+    total_tax_burden = ndfl_tax + vat_to_pay + insurance_total
+    net_profit = (
+        income_without_vat
+        - base_expenses_without_vat
+        - ndfl_tax
+        - fixed_contrib
+        - extra_one_percent
+    )
+
+    display_expenses = base_total_expenses + fixed_contrib + extra_one_percent
+
+    return {
+        'revenue': revenue,
+        'expenses': display_expenses,
+        'tax': ndfl_tax,
+        'vat': vat_to_pay,
+        'insurance': insurance_total,
+        'total_burden': total_tax_burden,
+        'burden_percent': (total_tax_burden / revenue * 100) if revenue > 0 else 0,
+        'net_profit': net_profit,
+        'ndfl_base': ndfl_base,
+        'income_without_vat': income_without_vat,
+        'expenses_without_vat': base_expenses_without_vat,
+        'fixed_contrib': fixed_contrib,
+        'owner_extra': extra_one_percent,
+        'owner_extra_base': base_for_one_percent,
+    }
+
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     results = None
@@ -644,7 +750,7 @@ def index():
                     usn_dr_22['owner_extra_base'] = owner_extra_profit_base
                 results.append(('УСН Д-Р 15% + НДС 22%', usn_dr_22, True))
 
-                # ОСНО + НДС 22% — списание остатков только для налога на прибыль
+                # ОСНО + НДС 22% (ООО) — списание остатков только для налога на прибыль
                 osno = calculate_osno(
                     revenue,
                     total_expenses_profit_regime,
@@ -658,7 +764,26 @@ def index():
                 if osno:
                     osno['owner_extra'] = owner_extra_profit
                     osno['owner_extra_base'] = owner_extra_profit_base
-                results.append(('ОСНО + НДС 22%', osno, True))
+                results.append(('ОСНО + НДС 22% (ООО)', osno, True))
+
+                # ОСНО + НДС 22% (ИП) — вместо налога на прибыль считаем прогрессивный НДФЛ
+                osno_ip = calculate_osno_ip(
+                    revenue,
+                    total_expenses_common,
+                    vat_purchases_percent,
+                    cost_of_goods,
+                    rent,
+                    other_expenses,
+                    annual_fot,
+                    insurance_standard,
+                    fixed_contrib,
+                    accumulated_vat_credit=vat_credit_to_apply,
+                    stock_extra=stock_extra,
+                )
+                if osno_ip:
+                    osno_ip['owner_extra'] = owner_extra_profit
+                    osno_ip['owner_extra_base'] = owner_extra_profit_base
+                results.append(('ОСНО + НДС 22% (ИП)', osno_ip, True))
 
                 # Топ-5 режимов
                 available = [(name, data) for name, data, ok in results if ok and data]

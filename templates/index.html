@@ -1124,6 +1124,7 @@
             const fixedContribReduction = params.fixedContribReduction || 0;
             const burdenPercentText = fmtPercent(burdenPct);
             const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽ + ${fmtMoney(fixedContrib)} ₽`;
+            const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
             const reductionLimited = baseInsurStd >= taxReductionLimit && Math.abs(taxReduction - taxReductionLimit) <= 0.01;
             const hasEmployees = baseFot > 0;
             const fixedReductionIntro = hasEmployees
@@ -1157,11 +1158,6 @@
                 `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
                 `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
                 `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
-                ...(
-                    stockPart > 0
-                        ? [`- Списание остатков товара: ${fmtMoney(stockPart)} ₽.`]
-                        : []
-                ),
                 `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
                 `- Фиксированный взнос за ИП: ${fmtMoney(fixedContrib)} ₽.`,
                 '',
@@ -1210,7 +1206,7 @@
                 `${fmtMoney(baseFot)} × 30% = ${fmtMoney(baseInsurStd)} ₽.`,
                 '',
                 '1% с доходов свыше 300 000 ₽:',
-                `${ownerBaseMinusThresholdExpr} × 1% = ${fmtMoney(ownerExtra)} ₽.`,
+                `(${ownerBaseLine}) × 1% = ${fmtMoney(ownerExtra)} ₽.`,
                 '',
                 'Фиксированный взнос за ИП:',
                 `${fmtMoney(fixedContrib)} ₽ (указан во вводных данных).`,

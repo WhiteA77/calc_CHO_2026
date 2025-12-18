@@ -41,7 +41,8 @@ def _build_context(data: CalcInput) -> Tuple[CalculationContext, Dict[str, float
     insurance_total_profit = insurance_standard + owner_extra_profit + data.fixed_contrib
 
     total_expenses_income_regime = total_expenses_common + owner_extra_income + data.fixed_contrib
-    total_expenses_profit_regime = total_expenses_common + owner_extra_profit + data.fixed_contrib
+    total_expenses_profit_regime = total_expenses_common + data.fixed_contrib
+    usn_profit_expenses_for_base = total_expenses_profit_regime
     total_expenses_ausn = cost_of_goods + data.rent + other_expenses + annual_fot
 
     ctx = CalculationContext(
@@ -62,6 +63,7 @@ def _build_context(data: CalcInput) -> Tuple[CalculationContext, Dict[str, float
         insurance_total_profit=insurance_total_profit,
         total_expenses_income_regime=total_expenses_income_regime,
         total_expenses_profit_regime=total_expenses_profit_regime,
+        usn_profit_expenses_for_base=usn_profit_expenses_for_base,
         total_expenses_ausn=total_expenses_ausn,
     )
 

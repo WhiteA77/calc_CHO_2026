@@ -44,6 +44,7 @@ class CalculationContext:
     insurance_total_profit: float
     total_expenses_income_regime: float
     total_expenses_profit_regime: float
+    usn_profit_expenses_for_base: float
     total_expenses_ausn: float
 
 

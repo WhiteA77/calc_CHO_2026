@@ -30,7 +30,8 @@ def _calc_vat(data: CalcInput, ctx: CalculationContext, vat_rate: float) -> Dict
 
 
 def _calc_usn_profit_tax(data: CalcInput, ctx: CalculationContext) -> Dict[str, float]:
-    usn_base = data.revenue - ctx.total_expenses_profit_regime - ctx.stock_extra
+    usn_expenses_for_base = ctx.usn_profit_expenses_for_base
+    usn_base = data.revenue - usn_expenses_for_base - ctx.stock_extra
     taxable_base = max(usn_base, 0.0)
     tax_regular = taxable_base * USN_PROFIT_RATE
     min_tax = data.revenue * USN_PROFIT_MIN_RATE

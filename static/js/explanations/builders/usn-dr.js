@@ -32,10 +32,12 @@
         const includeVatSection = Boolean(options.includeVatSection);
         const vatRate = options.vatRate;
         const burdenPercentText = fmtPercent(burdenPct);
-        const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
+        const expensesForUsnBase = baseCost + baseRent + baseOther + baseFot + baseInsurStd + fixedContrib;
+        const expensesWithoutSelfContrib = revenue - ownerExtraBase;
+        const ownerBaseLine = `(доходы ${fmtMoney(revenue)} ₽ − расходы без взносов за себя ${fmtMoney(expensesWithoutSelfContrib)} ₽ = ${fmtMoney(ownerExtraBase)} ₽) − 300 000 ₽`;
         const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽ + ${fmtMoney(fixedContrib)} ₽`;
         const stockPart = stockExtra > 0 ? stockExtra : 0;
-        const usnBase = revenue - expenses - stockPart;
+        const usnBase = revenue - expensesForUsnBase - stockPart;
         const positiveBase = Math.max(usnBase, 0);
         const regularTax = usnRegularTax || positiveBase * 0.15;
         const minTax = usnMinTax || revenue * 0.01;
@@ -62,13 +64,15 @@
             '## 3. Расходы (без налогов)',
             `Итого расходы: ${fmtMoney(expenses)} ₽.`,
             '',
-            'Структура расходов:',
+            'Расходы, уменьшающие базу по УСН 15% (без взносов за себя):',
             `- Себестоимость: ${fmtMoney(baseCost)} ₽.`,
             `- Аренда: ${fmtMoney(baseRent)} ₽.`,
             `- Прочие расходы: ${fmtMoney(baseOther)} ₽.`,
             `- ФОТ: ${fmtMoney(baseFot)} ₽.`,
             `- Страховые взносы 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
-            `- Взнос 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
+            `- Фиксированный взнос за ИП: ${fmtMoney(fixedContrib)} ₽.`,
+            '',
+            `Итого для расчёта базы: ${fmtMoney(expensesForUsnBase)} ₽. Взнос 1% не уменьшает базу и показан отдельно в разделе страховых взносов.`,
         ];
 
         if (stockPart > 0) {
@@ -82,7 +86,7 @@
             '',
             '## 4. Расчёт налога УСН 15%',
             'Налоговая база:',
-            `${fmtMoney(revenue)} − ${fmtMoney(expenses)}${stockPart > 0 ? ` − ${fmtMoney(stockPart)} (остатки)` : ''} = ${fmtMoney(usnBase)} ₽.`,
+            `${fmtMoney(revenue)} − ${fmtMoney(expensesForUsnBase)}${stockPart > 0 ? ` − ${fmtMoney(stockPart)} (остатки)` : ''} = ${fmtMoney(usnBase)} ₽.`,
             '',
             'Налог по УСН 15%:',
             `${fmtMoney(positiveBase)} × 15% = ${fmtMoney(regularTax)} ₽.`,

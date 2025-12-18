@@ -71,25 +71,25 @@ def test_usn_income_vat5(results_map):
 
 def test_usn_profit_vat5(results_map):
     result = results_map["УСН Д-Р 15% + НДС 5%"]
-    assert result["tax"] == pytest.approx(312_601.5)
+    assert result["tax"] == pytest.approx(315_391.5)
     assert result["vat"] == pytest.approx(476_190.4761904762)
-    assert result["total_burden"] == pytest.approx(1_404_781.9761904762)
-    assert result["net_profit"] == pytest.approx(1_295_218.0238095238)
+    assert result["total_burden"] == pytest.approx(1_407_571.9761904762)
+    assert result["net_profit"] == pytest.approx(1_311_028.0238095238)
 
 
 def test_usn_profit_vat22(results_map):
     result = results_map["УСН Д-Р 15% + НДС 22%"]
     assert result["vat"] == pytest.approx(1_298_360.6557377048)
-    assert result["total_burden"] == pytest.approx(2_226_952.1557377046)
-    assert result["net_profit"] == pytest.approx(473_047.84426229517)
+    assert result["total_burden"] == pytest.approx(2_229_742.1557377046)
+    assert result["net_profit"] == pytest.approx(488_857.84426229517)
 
 
 def test_osno_ooo(results_map):
     result = results_map["ОСНО + НДС 22% (ООО)"]
-    assert result["tax"] == pytest.approx(196_412.3360655738)
+    assert result["tax"] == pytest.approx(201_062.3360655738)
     assert result["vat"] == pytest.approx(1_298_360.6557377048)
-    assert result["total_burden"] == pytest.approx(2_110_762.9918032787)
-    assert result["net_profit"] == pytest.approx(589_237.0081967213)
+    assert result["total_burden"] == pytest.approx(2_115_412.9918032787)
+    assert result["net_profit"] == pytest.approx(603_187.0081967213)
 
 
 def test_osno_ip(results_map):

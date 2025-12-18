@@ -54,6 +54,7 @@ def make_context(**overrides) -> CalculationContext:
         "insurance_total_profit": 0.0,
         "total_expenses_income_regime": 0.0,
         "total_expenses_profit_regime": 0.0,
+        "usn_profit_expenses_for_base": 0.0,
         "total_expenses_ausn": 0.0,
     }
     ctx_data.update(overrides)

@@ -11,6 +11,9 @@
                     data-insurance-standard="{{ components.insurance_standard or 0 }}"
                     data-fixed-contrib="{{ components.fixed_contrib or 0 }}"
                     data-vat-purchases-percent="{{ components.vat_purchases_percent or 0 }}"
+                    data-vat-share-cogs="{{ components.vat_share_cogs if components.vat_share_cogs is not none else ((components.vat_purchases_percent or 0) / 100) }}"
+                    data-vat-share-rent="{{ components.vat_share_rent or 1 }}"
+                    data-vat-share-other="{{ components.vat_share_other or 1 }}"
                     data-accumulated-vat-credit="{{ components.accumulated_vat_credit or 0 }}"
                     data-stock-extra="{{ components.stock_extra or 0 }}"
                     data-transition-mode="{{ components.transition_mode or 'none' }}">

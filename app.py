@@ -23,6 +23,18 @@ def build_base_payload(components: Dict[str, Any], calc_input: Optional[CalcInpu
     if not components or not calc_input:
         return {}
 
+    def normalize_share(value: Optional[float], fallback: float) -> float:
+        share = fallback if value is None else value
+        if share > 1.0:
+            share = share / 100.0
+        if share < 0.0:
+            share = 0.0
+        return min(share, 1.0)
+
+    rent_share = normalize_share(getattr(calc_input, "vat_share_rent", None), 1.0)
+    other_share = normalize_share(getattr(calc_input, "vat_share_other", None), 1.0)
+    cogs_share = normalize_share(getattr(calc_input, "vat_share_cogs", None), getattr(calc_input, "vat_purchases_percent", 0.0))
+
     return {
         "period_label": None,
         "revenue_gross": _safe_number(getattr(calc_input, "revenue", 0.0)),
@@ -35,6 +47,9 @@ def build_base_payload(components: Dict[str, Any], calc_input: Optional[CalcInpu
         "fixed_contrib": _safe_number(components.get("fixed_contrib")),
         "share_with_vat": _safe_number(components.get("vat_purchases_percent")),
         "vat_purchases_percent": _safe_number(components.get("vat_purchases_percent")),
+        "vat_share_cogs": _safe_number(cogs_share),
+        "vat_share_rent": _safe_number(rent_share),
+        "vat_share_other": _safe_number(other_share),
         "transition_mode": components.get("transition_mode") or "none",
         "stock_extra": _safe_number(components.get("stock_extra")),
         "stock_expense_amount": _safe_number(components.get("stock_expense_amount")),
@@ -96,6 +111,17 @@ def build_regime_payload(title: str, payload: Dict[str, Any], components: Dict[s
         "vat_charged",
         "vat_deductible",
         "vat_extra_credit",
+        "vat_payable",
+        "vat_refund",
+        "cogs_no_vat",
+        "rent_no_vat",
+        "other_no_vat",
+        "vat_deductible_cogs",
+        "vat_deductible_rent",
+        "vat_deductible_other",
+        "net_profit_accounting",
+        "net_profit_cash",
+        "total_payments",
     )
 
     details = {key: _safe_number(payload.get(key)) for key in details_keys}

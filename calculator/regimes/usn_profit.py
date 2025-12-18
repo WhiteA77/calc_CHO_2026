@@ -90,6 +90,9 @@ def calculate_usn_profit_with_vat(data: CalcInput, ctx: CalculationContext, vat_
         "fixed_contrib": data.fixed_contrib,
         "owner_extra": ctx.owner_extra_profit,
         "owner_extra_base": ctx.owner_extra_profit_base,
+        "vat_charged": vat_values["vat_charged"],
+        "vat_deductible": vat_values["vat_deductible"],
+        "vat_extra_credit": vat_values["extra_credit"],
     }
 
     return CalcResult(

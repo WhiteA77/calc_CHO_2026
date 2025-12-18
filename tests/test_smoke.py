@@ -1,5 +1,7 @@
 import pytest
 
+pytest.importorskip("flask")
+from app import app
 from calculator import CalcInput, run_calculation
 from calculator.constants import DEFAULT_FIXED_CONTRIB
 
@@ -68,3 +70,47 @@ def test_run_calculation_different_input():
     )
     if ausn_result:
         assert ausn_result["revenue"] == pytest.approx(input_data.revenue)
+
+
+def test_index_serves_assets():
+    client = app.test_client()
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    assert "css/main.css" in html
+    assert "js/app.js" in html
+
+
+def test_index_contains_calc_data_script():
+    client = app.test_client()
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    assert '<script id="calc-data"' in html
+
+
+def test_results_rows_have_regime_ids():
+    client = app.test_client()
+    response = client.post(
+        "/",
+        data={
+            "revenue": "1500000",
+            "cost_percent": "15",
+            "vat_purchases_percent": "20",
+            "rent": "100000",
+            "fixed_contrib": str(DEFAULT_FIXED_CONTRIB),
+            "employees": "2",
+            "salary": "40000",
+            "fot_mode": "staff",
+            "fot_annual": "0",
+            "other_mode": "percent",
+            "other_percent": "5",
+            "other_amount": "0",
+            "transition_mode": "none",
+            "accumulated_vat_credit": "0",
+            "stock_expense_amount": "0",
+        },
+    )
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    assert 'data-regime-id="' in html

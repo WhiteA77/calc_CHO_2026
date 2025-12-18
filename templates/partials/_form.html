@@ -1,0 +1,274 @@
+{% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="form-section">
+            <form method="POST">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="revenue">Выручка в год, ₽ *</label>
+                        <input type="number" id="revenue" name="revenue" step="0.01" required
+                               value="{{ form_data.revenue if form_data else '0' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="cost_percent">Себестоимость, % от выручки</label>
+                        <input type="number" id="cost_percent" name="cost_percent" step="0.01" min="0" max="100"
+                               value="{{ form_data.cost_percent if form_data else '0' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="vat_purchases_percent">Процент закупок с НДС, %</label>
+                        <input type="number" id="vat_purchases_percent" name="vat_purchases_percent" step="0.01" min="0" max="100"
+                               value="{{ form_data.vat_purchases_percent if form_data else '0' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rent">Аренда в год, ₽</label>
+                        <input type="number" id="rent" name="rent" step="0.01"
+                               value="{{ form_data.rent if form_data else '0' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fixed_contrib">Фиксированный взнос за ИП в год, ₽</label>
+                        <input type="number" id="fixed_contrib" name="fixed_contrib" step="0.01" min="0"
+                               value="{{ form_data.fixed_contrib if form_data else '57390' }}">
+                    </div>
+
+                    {% set transition_mode = form_data.transition_mode | default('none') %}
+                    <div class="fot-group" style="grid-column: 1 / -1; margin-top: 10px;">
+                        <div class="fot-label">Учёт перехода на режим</div>
+
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label style="margin-bottom: 10px;">Что учитывать при смене режима</label>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <label>
+                                    <input type="radio" name="transition_mode" value="none"
+                                        {% if not form_data or transition_mode == 'none' %}checked{% endif %}>
+                                    Не учитывать
+                                </label>
+                                <label>
+                                    <input type="radio" name="transition_mode" value="vat"
+                                        {% if transition_mode == 'vat' %}checked{% endif %}>
+                                    Учитывать накопленный НДС к вычету
+                                </label>
+                                <label>
+                                    <input type="radio" name="transition_mode" value="stock"
+                                        {% if transition_mode == 'stock' %}checked{% endif %}>
+                                    Учитывать сумму себестоимости остатков товара
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="accumulated_vat_credit">Накопленный НДС к вычету, ₽</label>
+                            <input
+                                type="number"
+                                id="accumulated_vat_credit"
+                                name="accumulated_vat_credit"
+                                step="0.01"
+                                min="0"
+                                value="{{ form_data.accumulated_vat_credit if form_data else '0' }}"
+                                {% if transition_mode != 'vat' %}readonly{% endif %}
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="stock_expense_amount">Сумма себестоимости остатков товара, ₽</label>
+                            <input
+                                type="number"
+                                id="stock_expense_amount"
+                                name="stock_expense_amount"
+                                step="0.01"
+                                min="0"
+                                value="{{ form_data.stock_expense_amount if form_data else '0' }}"
+                                {% if transition_mode != 'stock' %}readonly{% endif %}
+                            >
+                        </div>
+
+                        <p class="month-help" style="grid-column: 1 / -1; margin-top: 4px;">
+                            При переходе на новый режим можно учесть либо накопленный входящий НДС за последние 3 года,
+                            либо стоимость подтверждённых товарных остатков как единовременный расход.
+                            Для подтверждения нужны: накладные, счета-фактуры, карточки складского учёта,
+                            акт инвентаризации остатков на дату перехода.
+                        </p>
+                    </div>
+
+                    <div class="fot-group">
+                        <div class="fot-label">Прочие расходы</div>
+
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <div style="margin-bottom: 10px;">
+                                <label style="margin-right: 20px;">
+                                    <input type="radio" name="other_mode" value="percent"
+                                        {% if form_data.other_mode != 'absolute' %}checked{% endif %}>
+                                    В процентах
+                                </label>
+                                <label>
+                                    <input type="radio" name="other_mode" value="absolute"
+                                        {% if form_data.other_mode == 'absolute' %}checked{% endif %}>
+                                    В рублях
+                                </label>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div>
+                                    <label for="other_percent">Проценты (%)</label>
+                                    <input type="number" id="other_percent" name="other_percent" step="0.01" min="0" max="100"
+                                        value="{{ form_data.other_percent if form_data else '0' }}"
+                                        {% if form_data.other_mode == 'absolute' %}readonly{% endif %}>
+                                </div>
+
+                                <div>
+                                    <label for="other_amount">Сумма (₽ в год)</label>
+                                    <input type="number" id="other_amount" name="other_amount" step="0.01" min="0"
+                                        value="{{ form_data.other_amount if form_data else '0' }}"
+                                        {% if form_data.other_mode != 'absolute' %}readonly{% endif %}>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="fot-group">
+                        <div class="fot-label">Фонд оплаты труда (ФОТ)</div>
+
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label>Способ задания ФОТ</label>
+                            <div style="margin-top: 4px; margin-bottom: 12px;">
+                                <label style="margin-right: 20px;">
+                                    <input type="radio" name="fot_mode" value="staff"
+                                        {% if form_data.fot_mode != 'annual' %}checked{% endif %}>
+                                    По сотрудникам (количество × оклад)
+                                </label>
+                                <label>
+                                    <input type="radio" name="fot_mode" value="annual"
+                                        {% if form_data.fot_mode == 'annual' %}checked{% endif %}>
+                                    ФОТ суммой за год
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="employees">Количество сотрудников</label>
+                            <input type="number" id="employees" name="employees" min="0" step="1"
+                                value="{{ form_data.employees if form_data else '0' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="salary">Оклад одного сотрудника в месяц, ₽</label>
+                            <input type="number" id="salary" name="salary" step="0.01"
+                                value="{{ form_data.salary if form_data else '0' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="fot_annual">ФОТ за год, ₽</label>
+                            <input type="number" id="fot_annual" name="fot_annual" step="0.01" min="0"
+                                value="{{ form_data.fot_annual if form_data else '' }}">
+                        </div>
+
+                        <p class="month-help" style="grid-column: 1 / -1; margin-top: 4px;">
+                            В режиме «по сотрудникам» ФОТ за год считается как:
+                            <strong>количество сотрудников × оклад × 12</strong> и подставляется автоматически.
+                            В режиме «ФОТ суммой за год» используется только введённая сумма — поля сотрудников и оклады
+                            на расчёт не влияют.
+                        </p>
+                    </div>
+
+
+                    <div class="fot-group">
+                        <div class="fot-label">
+                            Коэффициент закупок по месяцам (100 — обычный месяц, для АУСН 20%)
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_jan">Январь</label>
+                            <input type="number" id="purchases_jan" name="purchases_jan" step="0.01" min="0"
+                                   value="{{ form_data.purchases_jan if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_feb">Февраль</label>
+                            <input type="number" id="purchases_feb" name="purchases_feb" step="0.01" min="0"
+                                   value="{{ form_data.purchases_feb if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_mar">Март</label>
+                            <input type="number" id="purchases_mar" name="purchases_mar" step="0.01" min="0"
+                                   value="{{ form_data.purchases_mar if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_apr">Апрель</label>
+                            <input type="number" id="purchases_apr" name="purchases_apr" step="0.01" min="0"
+                                   value="{{ form_data.purchases_apr if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_may">Май</label>
+                            <input type="number" id="purchases_may" name="purchases_may" step="0.01" min="0"
+                                   value="{{ form_data.purchases_may if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_jun">Июнь</label>
+                            <input type="number" id="purchases_jun" name="purchases_jun" step="0.01" min="0"
+                                   value="{{ form_data.purchases_jun if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_jul">Июль</label>
+                            <input type="number" id="purchases_jul" name="purchases_jul" step="0.01" min="0"
+                                   value="{{ form_data.purchases_jul if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_aug">Август</label>
+                            <input type="number" id="purchases_aug" name="purchases_aug" step="0.01" min="0"
+                                   value="{{ form_data.purchases_aug if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_sep">Сентябрь</label>
+                            <input type="number" id="purchases_sep" name="purchases_sep" step="0.01" min="0"
+                                   value="{{ form_data.purchases_sep if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_oct">Октябрь</label>
+                            <input type="number" id="purchases_oct" name="purchases_oct" step="0.01" min="0"
+                                   value="{{ form_data.purchases_oct if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_nov">Ноябрь</label>
+                            <input type="number" id="purchases_nov" name="purchases_nov" step="0.01" min="0"
+                                   value="{{ form_data.purchases_nov if form_data else '100' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purchases_dec">Декабрь</label>
+                            <input type="number" id="purchases_dec" name="purchases_dec" step="0.01" min="0"
+                                   value="{{ form_data.purchases_dec if form_data else '100' }}">
+                        </div>
+
+                        <p class="month-help">
+                            Укажите <strong>относительную нагрузку закупок</strong> по месяцам.
+                            Значение <strong>100</strong> означает обычный уровень закупок.
+                            Если в каком-то месяце закупок в 2 раза больше среднего — поставьте <strong>200</strong>,
+                            если в 2 раза меньше — <strong>50</strong>.
+                            Сумма значений может быть любой — калькулятор сам нормализует их.
+                        </p>
+
+                        <p class="month-summary">
+                            Сумма коэффициентов: <span id="coef-sum">–</span>
+                            (<span id="coef-percent">–</span>% от базового уровня 1200)
+                        </p>
+                    </div>
+                </div>
+
+                <button type="submit">Рассчитать</button>
+            </form>
+        </div>

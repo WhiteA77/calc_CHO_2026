@@ -23,6 +23,9 @@ def calculate_osno_ooo(data: CalcInput, ctx: CalculationContext) -> CalcResult:
         "fixed_contrib": data.fixed_contrib,
         "owner_extra": ctx.owner_extra_profit,
         "owner_extra_base": ctx.owner_extra_profit_base,
+        "vat_charged": vat_charged,
+        "vat_deductible": vat_deductible,
+        "vat_extra_credit": ctx.vat_credit_to_apply,
     }
 
     return CalcResult(
@@ -85,6 +88,10 @@ def calculate_osno_ip(data: CalcInput, ctx: CalculationContext) -> CalcResult:
         "fixed_contrib": data.fixed_contrib,
         "owner_extra": ctx.owner_extra_profit,
         "owner_extra_base": ctx.owner_extra_profit_base,
+        "vat_charged": vat_charged,
+        "vat_deductible": vat_deductible,
+        "vat_extra_credit": ctx.vat_credit_to_apply,
+        "ndfl_tax": ndfl_tax,
     }
 
     return CalcResult(

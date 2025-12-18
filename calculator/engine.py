@@ -67,9 +67,11 @@ def _build_context(data: CalcInput) -> Tuple[CalculationContext, Dict[str, float
 
     components = {
         "cost_of_goods": cost_of_goods,
+        "revenue": data.revenue,
         "rent": data.rent,
         "other_expenses": other_expenses,
         "annual_fot": annual_fot,
+        "has_employees": has_employees,
         "insurance_standard": insurance_standard,
         "fixed_contrib": data.fixed_contrib,
         "owner_extra_income": owner_extra_income,
@@ -87,7 +89,9 @@ def _build_context(data: CalcInput) -> Tuple[CalculationContext, Dict[str, float
 
 
 def _wrap_result(result: CalcResult) -> Tuple[str, Dict[str, float], bool]:
-    return result.title, result.to_dict(), result.available
+    payload = result.to_dict()
+    payload["regime_id"] = result.regime
+    return result.title, payload, result.available
 
 
 def run_calculation(data: CalcInput) -> CalculationSummary:

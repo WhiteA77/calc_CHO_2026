@@ -1,0 +1,36 @@
+{% if results %}
+        <div class="results-note">
+            В расчётах предполагается, что ИП платит фиксированный взнос за себя в размере
+            <strong>{{ format_number(components.fixed_contrib or 0) }}</strong> ₽ в год.
+            Этот платёж обязателен для всех рассматриваемых режимов и включён в общую налоговую нагрузку.
+        </div>
+        {% endif %}
+
+        {% if top_results %}
+        <div class="results-section">
+            <h2 class="results-title">Топ-5 режимов с минимальной налоговой нагрузкой</h2>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Режим</th>
+                            <th class="number-cell">Налог. нагрузка, ₽</th>
+                            <th class="number-cell">Налог. нагрузка, %</th>
+                            <th class="number-cell">Чистая прибыль, ₽</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, data in top_results %}
+                        <tr>
+                            <td class="regime-name">{{ name }}</td>
+                            <td class="number-cell">{{ format_number(data.total_burden) }}</td>
+                            <td class="number-cell">{{ "%.2f"|format(data.burden_percent) }}%</td>
+                            <td class="number-cell">{{ format_number(data.net_profit) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}

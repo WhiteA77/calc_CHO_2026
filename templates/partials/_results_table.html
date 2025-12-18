@@ -1,0 +1,96 @@
+{% if results %}
+        <div class="results-section">
+            <h2 class="results-title">Сравнение режимов налогообложения</h2>
+
+            <div class="table-wrapper">
+                <table id="regimes-table"
+                    data-cost-of-goods="{{ components.cost_of_goods or 0 }}"
+                    data-rent="{{ components.rent or 0 }}"
+                    data-other-expenses="{{ components.other_expenses or 0 }}"
+                    data-annual-fot="{{ components.annual_fot or 0 }}"
+                    data-insurance-standard="{{ components.insurance_standard or 0 }}"
+                    data-fixed-contrib="{{ components.fixed_contrib or 0 }}"
+                    data-vat-purchases-percent="{{ components.vat_purchases_percent or 0 }}"
+                    data-accumulated-vat-credit="{{ components.accumulated_vat_credit or 0 }}"
+                    data-stock-extra="{{ components.stock_extra or 0 }}"
+                    data-transition-mode="{{ components.transition_mode or 'none' }}">
+
+                    <thead>
+                        <tr>
+                            <th>Режим</th>
+                            <th class="number-cell">Выручка, ₽</th>
+                            <th class="number-cell">Расходы, ₽</th>
+                            <th class="number-cell">Налог, ₽</th>
+                            <th class="number-cell">НДС, ₽</th>
+                            <th class="number-cell">Взносы, ₽</th>
+                            <th class="number-cell">Налог. нагрузка, ₽</th>
+                            <th class="number-cell">Налог. нагрузка, %</th>
+                            <th class="number-cell">Чист. прибыль, ₽</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for regime_name, data, is_available in results %}
+                        <tr
+                            {% if is_available and data %}
+                                class="regime-row"
+                                data-regime="{{ regime_name }}"
+                                data-regime-id="{{ data.regime_id }}"
+                                data-revenue="{{ data.revenue }}"
+                                data-expenses="{{ data.expenses }}"
+                                data-tax="{{ data.tax }}"
+                                data-vat="{{ data.vat }}"
+                                data-insurance="{{ data.insurance }}"
+                                data-total-burden="{{ data.total_burden }}"
+                                data-burden-percent="{{ '%.2f'|format(data.burden_percent) }}"
+                                data-net-profit="{{ data.net_profit }}"
+                                data-owner-extra="{{ data.owner_extra or 0 }}"
+                                data-owner-extra-base="{{ data.owner_extra_base or 0 }}"
+                                data-usn-regular-tax="{{ data.usn_regular_tax or 0 }}"
+                                data-usn-min-tax="{{ data.usn_min_tax or 0 }}"
+                                data-tax-initial="{{ data.tax_initial or 0 }}"
+                                data-tax-reduction="{{ data.tax_reduction or 0 }}"
+                                data-tax-reduction-limit="{{ data.tax_reduction_limit or 0 }}"
+                                data-fixed-contrib="{{ data.fixed_contrib or 0 }}"
+                                data-fixed-reduction="{{ data.fixed_contrib_reduction or 0 }}"
+                                data-ndfl-base="{{ data.ndfl_base or 0 }}"
+                                data-ndfl-tax="{{ data.ndfl_tax or data.tax or 0 }}"
+                                data-income-no-vat="{{ data.income_without_vat or 0 }}"
+                                data-expenses-no-vat="{{ data.expenses_without_vat or 0 }}"
+                            {% endif %}
+                        >
+                            <td class="regime-name {% if not is_available %}unavailable{% endif %}">
+                                {{ regime_name }}
+                            </td>
+                            {% if is_available and data %}
+                                <td class="number-cell">{{ format_number(data.revenue) }}</td>
+                                <td class="number-cell">{{ format_number(data.expenses) }}</td>
+                                <td class="number-cell">{{ format_number(data.tax) }}</td>
+                                <td class="number-cell">{{ format_number(data.vat) }}</td>
+                                <td class="number-cell">{{ format_number(data.insurance) }}</td>
+                                <td class="number-cell">{{ format_number(data.total_burden) }}</td>
+                                <td class="number-cell">{{ "%.2f"|format(data.burden_percent) }}%</td>
+                                <td class="number-cell {% if data.net_profit >= 0 %}positive{% else %}negative{% endif %}">
+                                    {{ format_number(data.net_profit) }}
+                                </td>
+                            {% else %}
+                                <td class="number-cell unavailable">–</td>
+                                <td class="number-cell unavailable">–</td>
+                                <td class="number-cell unavailable">–</td>
+                                <td class="number-cell unavailable">–</td>
+                                <td class="number-cell unavailable">–</td>
+                                <td class="number-cell unavailable">–</td>
+                                <td class="number-cell unavailable">–</td>
+                                <td class="number-cell unavailable">–</td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <p style="margin-top: 20px; color: #808080; font-size: 13px;">
+                * Страховые взносы рассчитаны как 30% от ФОТ + дополнительный 1% с превышения базы свыше 300 000 ₽ (для режимов «доходы» — с выручки, для «доходы минус расходы» и ОСНО — с прибыли) + фиксированный взнос за ИП, указанный во вводных данных.<br>
+                * АУСН доступен только при выручке до 60 млн ₽ в год и до 5 сотрудников.
+            </p>
+        </div>
+        {% endif %}

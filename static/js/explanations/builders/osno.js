@@ -128,7 +128,7 @@
             '',
             'Расчёт:',
             `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} − ${fmtMoney(vat)} = ${fmtMoney(netProfit)} ₽.`,
-        ];
+        );
 
         return renderMarkdown(lines);
     }
@@ -286,7 +286,7 @@
             '',
             'Расчёт:',
             `${fmtMoney(incomeWithoutVat)} − ${fmtMoney(expensesWithoutVat)} − ${fmtMoney(ndflTax)} − ${fmtMoney(extra1pctCalc)} − ${fmtMoney(fixedContrib)} = ${fmtMoney(netProfit)} ₽.`,
-        ];
+            );
 
         return renderMarkdown(lines);
     }

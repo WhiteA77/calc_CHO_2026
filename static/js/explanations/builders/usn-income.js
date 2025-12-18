@@ -28,15 +28,9 @@
         const burdenPercentText = fmtPercent(burdenPct);
         const insuranceBreakdown = `${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽ + ${fmtMoney(fixedContrib)} ₽`;
         const ownerBaseLine = `${fmtMoney(ownerExtraBase)} ₽ − 300 000 ₽`;
-        const reductionLimited = baseInsurStd >= taxReductionLimit && Math.abs(taxReduction - taxReductionLimit) <= 0.01;
         const hasEmployees = baseFot > 0;
-        const fixedReductionIntro = hasEmployees
-            ? 'Так как есть сотрудники, фиксированный взнос может уменьшить налог не более чем на 50% от начисленной суммы.'
-            : 'Сотрудников нет, поэтому фиксированный взнос может уменьшить налог вплоть до 0 ₽.';
-        const standardReductionApplied = Math.min(baseInsurStd, taxReductionLimit);
-        const fixedAvailable = hasEmployees
-            ? Math.max(taxReductionLimit - standardReductionApplied, 0)
-            : Math.max(taxInitial - standardReductionApplied, 0);
+        const reductionLimitPercent = hasEmployees ? '50%' : '100%';
+        const contributionsTotal = baseInsurStd + ownerExtra + fixedContrib;
 
         const lines = [
             '# Пояснение к расчёту налоговой нагрузки (УСН Доходы 6%)',
@@ -68,36 +62,25 @@
             'Налог без уменьшения:',
             `${fmtMoney(revenue)} × 6% = ${fmtMoney(taxInitial)} ₽.`,
             '',
-            'Сумма страховых взносов, участвующая в уменьшении налога (30% от ФОТ):',
-            `${fmtMoney(baseInsurStd)} ₽.`,
-            '',
-            'Максимальное уменьшение (не более 50% от начисленного налога):',
-            `${fmtMoney(taxInitial)} ₽ × 50% = ${fmtMoney(taxReductionLimit)} ₽.`,
-        ];
-
-        if (reductionLimited) {
-            lines.push(
-                '',
-                'Фактическое уменьшение налога:',
-                `так как сумма страховых взносов (30% от ФОТ) = ${fmtMoney(baseInsurStd)} ₽ превышает или равна максимальному допустимому уменьшению (${fmtMoney(taxReductionLimit)} ₽), налог может быть уменьшен только на ${fmtMoney(taxReduction)} ₽.`,
-            );
-        } else {
-            lines.push(
-                '',
-                'Фактическое уменьшение налога:',
-                `так как сумма страховых взносов (30% от ФОТ) = ${fmtMoney(baseInsurStd)} ₽ меньше максимального допустимого уменьшения (${fmtMoney(taxReductionLimit)} ₽), налог уменьшается на ${fmtMoney(taxReduction)} ₽.`,
-            );
-        }
-
-        lines.push(
-            '',
-            'Фиксированный взнос за ИП:',
-            `Сумма взноса: ${fmtMoney(fixedContrib)} ₽.`,
-            fixedReductionIntro,
+            'Максимальное уменьшение налога:',
             hasEmployees
-                ? `Доступный лимит уменьшения за счёт фиксированного взноса: ${fmtMoney(fixedAvailable)} ₽, использовано ${fmtMoney(fixedContribReduction)} ₽.`
-                : `В расчёте налог уменьшен на ${fmtMoney(fixedContribReduction)} ₽ за счёт этого взноса.`,
-            'Сам взнос при этом всё равно уплачивается и добавлен к общей налоговой нагрузке.',
+                ? 'есть сотрудники → можно уменьшить не более чем на 50% начисленного налога.'
+                : 'сотрудников нет → налог можно уменьшить вплоть до 100% начисленной суммы.',
+            `${fmtMoney(taxInitial)} ₽ × ${reductionLimitPercent} = ${fmtMoney(taxReductionLimit)} ₽.`,
+            '',
+            'Сумма страховых взносов, участвующая в уменьшении:',
+            `- 30% от ФОТ: ${fmtMoney(baseInsurStd)} ₽.`,
+            `- 1% с доходов свыше 300 000 ₽: ${fmtMoney(ownerExtra)} ₽.`,
+            `- Фиксированный взнос ИП: ${fmtMoney(fixedContrib)} ₽.`,
+            `Итого: ${fmtMoney(baseInsurStd)} ₽ + ${fmtMoney(ownerExtra)} ₽ + ${fmtMoney(fixedContrib)} ₽ = ${fmtMoney(contributionsTotal)} ₽.`,
+            '',
+            'Фактическое уменьшение налога:',
+            `min(${fmtMoney(contributionsTotal)} ₽, ${fmtMoney(taxReductionLimit)} ₽) = ${fmtMoney(taxReduction)} ₽.`,
+            '',
+            'Фиксированный взнос участвует в уменьшении в пределах оставшегося лимита, но сам взнос всё равно уплачивается и входит в страховые взносы.',
+            fixedContribReduction > 0
+                ? `В этом расчёте за счёт фиксированного взноса уменьшено ${fmtMoney(fixedContribReduction)} ₽.`
+                : 'В этом расчёте фиксированный взнос не потребовался для уменьшения налога.',
             '',
             'Налог к уплате по УСН 6%:',
             `${fmtMoney(taxInitial)} ₽ − ${fmtMoney(taxReduction)} ₽ = ${fmtMoney(tax)} ₽.`,
@@ -116,8 +99,8 @@
             `${insuranceBreakdown} = ${fmtMoney(insurance)} ₽.`,
             '',
             '## 6. Совокупная налоговая нагрузка',
-            'Сумма налогов и взносов:',
-            `${fmtMoney(tax)} + 0 ₽ + ${fmtMoney(insurance)} = ${fmtMoney(totalBurden)} ₽.`,
+            'Совокупная нагрузка = налог УСН к уплате + страховые взносы (взносы уменьшают налог, но уплачиваются отдельно).',
+            `${fmtMoney(tax)} + ${fmtMoney(insurance)} = ${fmtMoney(totalBurden)} ₽.`,
             '',
             'Доля от выручки:',
             `${fmtMoney(totalBurden)} / ${fmtMoney(revenue)} × 100% = ${burdenPercentText}%.`,
@@ -128,7 +111,7 @@
             '',
             'Расчёт:',
             `${fmtMoney(revenue)} − ${fmtMoney(expenses)} − ${fmtMoney(tax)} = ${fmtMoney(netProfit)} ₽.`,
-        );
+        ];
 
         return renderMarkdown(lines);
     }

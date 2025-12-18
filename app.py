@@ -197,6 +197,7 @@ def calculate_usn_income(
     cost_of_goods,
     fixed_contrib=0.0,
     has_employees=False,
+    accumulated_vat_credit=0.0,
 ):
     """Расчёт для УСН Доходы 6% + НДС"""
     tax_initial = revenue * 0.06
@@ -222,7 +223,7 @@ def calculate_usn_income(
     else:
         purchases_base = cost_of_goods * purchases_with_vat_percent / 100
         vat_deductible = purchases_base * vat_rate / (100 + vat_rate)
-        extra_credit = 0  # сейчас нет режимов УСН Доходы + НДС 22
+        extra_credit = accumulated_vat_credit
 
     vat_to_pay = max(vat_charged - vat_deductible - extra_credit, 0)
 
@@ -698,6 +699,24 @@ def index():
                     usn_income_5['owner_extra'] = owner_extra_income
                     usn_income_5['owner_extra_base'] = owner_extra_income_base
                 results.append(('УСН Доходы 6% + НДС 5%', usn_income_5, True))
+
+                # УСН Доходы 6% + НДС 22% — учитываем вычеты по закупкам и накопленный НДС
+                usn_income_22 = calculate_usn_income(
+                    revenue,
+                    total_expenses_income_regime,
+                    insurance_total_income,
+                    insurance_standard,
+                    22,
+                    vat_purchases_percent,
+                    cost_of_goods,
+                    fixed_contrib=fixed_contrib,
+                    has_employees=has_employees,
+                    accumulated_vat_credit=vat_credit_to_apply,
+                )
+                if usn_income_22:
+                    usn_income_22['owner_extra'] = owner_extra_income
+                    usn_income_22['owner_extra_base'] = owner_extra_income_base
+                results.append(('УСН Доходы 6% + НДС 22%', usn_income_22, True))
 
                 insurance_total_profit = (
                     insurance_standard + owner_extra_profit + fixed_contrib

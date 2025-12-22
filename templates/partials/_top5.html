@@ -7,8 +7,21 @@
         {% endif %}
 
         {% if top_results %}
-        <div class="results-section">
-            <h2 class="results-title">Топ-5 режимов с минимальной налоговой нагрузкой</h2>
+        <div class="results-section" id="top-results" data-default-sort="tax">
+            <div class="top-results-header">
+                <h2 class="results-title">Топ-5 выгодных режимов</h2>
+                <div class="top-results-controls">
+                    <span>Сортировать по:</span>
+                    <label>
+                        <input type="radio" name="top-results-sort" value="tax" checked>
+                        Налоговая нагрузка, %
+                    </label>
+                    <label>
+                        <input type="radio" name="top-results-sort" value="profit">
+                        Чистая прибыль, ₽
+                    </label>
+                </div>
+            </div>
 
             <div class="table-wrapper">
                 <table>
@@ -20,7 +33,7 @@
                             <th class="number-cell">Чистая прибыль, ₽</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="top-results-body">
                         {% for name, data in top_results %}
                         <tr>
                             <td class="regime-name">{{ name }}</td>

@@ -2,6 +2,20 @@
         <div class="results-section">
             <h2 class="results-title">Сравнение режимов налогообложения</h2>
 
+            <div class="table-controls">
+                <div class="top-results-controls table-sort-controls">
+                    <span>Сортировать по:</span>
+                    <label>
+                        <input type="radio" name="regimes-sort" value="tax" checked>
+                        Налоговая нагрузка, %
+                    </label>
+                    <label>
+                        <input type="radio" name="regimes-sort" value="profit">
+                        Чистая прибыль, ₽
+                    </label>
+                </div>
+            </div>
+
             <div class="table-wrapper">
                 <table id="regimes-table"
                     data-cost-of-goods="{{ components.cost_of_goods or 0 }}"

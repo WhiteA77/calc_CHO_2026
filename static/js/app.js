@@ -6,6 +6,8 @@
             global.OtherExpensesForm,
             global.FotModeForm,
             global.TableDetailsToggle,
+            global.RegimesTableSort,
+            global.TopResults,
         ];
 
         modules.forEach((module) => {

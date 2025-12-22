@@ -6,6 +6,7 @@
     const { fmtMoney, fmtPercent, renderMarkdown } = format;
 
     function buildOsnoMarkdown(params) {
+        const VAT_RATE = 22;
         const revenue = params.revenue || 0;
         const tax = params.tax || 0;
         const vatPayment = params.vat || 0;
@@ -25,11 +26,9 @@
         const stockExtra = params.stockExtra || 0;
         const accumulatedVatCredit = params.accumulatedVatCredit || 0;
         const transitionMode = params.transitionMode || 'none';
+        const extraVatCredit = transitionMode === 'vat' && accumulatedVatCredit > 0 ? accumulatedVatCredit : 0;
         const vatChargedParam = params.vatCharged;
         const vatDeductibleParam = params.vatDeductible;
-        const vatPayableBalance = params.vatPayable !== undefined
-            ? params.vatPayable
-            : (params.netProfitAccounting || 0) - (params.netProfitCash || params.netProfit || 0);
         const vatRefund = params.vatRefund || 0;
         const cogsVat = params.vatDeductibleCogs || 0;
         const rentVat = params.vatDeductibleRent || 0;
@@ -37,19 +36,25 @@
         const cogsNoVat = params.cogsNoVat || Math.max(baseCost - cogsVat, 0);
         const rentNoVat = params.rentNoVat || Math.max(baseRent - rentVat, 0);
         const otherNoVat = params.otherNoVat || Math.max(baseOther - otherVat, 0);
-        const netProfitAccounting = params.netProfitAccounting !== undefined
-            ? params.netProfitAccounting
-            : ((incomeWithoutVat || 0) - expensesWithoutVatParam - tax);
-        const netProfitCash = params.netProfitCash !== undefined
-            ? params.netProfitCash
-            : (netProfitAccounting - vatPayableBalance);
         const expensesWithoutVat = expensesWithoutVatParam
             || (cogsNoVat + rentNoVat + otherNoVat + baseFot + baseInsurStd + (stockExtra > 0 ? stockExtra : 0));
-        const vatCharged = vatChargedParam || (revenue * 22 / 122);
-        const vatDeductible = vatDeductibleParam || (cogsVat + rentVat + otherVat);
-        const creditPart = transitionMode === 'vat' && accumulatedVatCredit > 0
-            ? ` − ${fmtMoney(accumulatedVatCredit)} ₽ (накопленный НДС)`
-            : '';
+        const vatCharged = vatChargedParam !== undefined ? vatChargedParam : (revenue * VAT_RATE / (100 + VAT_RATE));
+        const vatDeductible = vatDeductibleParam !== undefined ? vatDeductibleParam : (cogsVat + rentVat + otherVat);
+        const vatPayableBalance = params.vatPayable !== undefined
+            ? params.vatPayable
+            : (vatCharged - vatDeductible - extraVatCredit);
+        const netProfitAccounting = params.netProfitAccounting !== undefined
+            ? params.netProfitAccounting
+            : ((incomeWithoutVat || 0) - expensesWithoutVat - tax);
+        const netProfitCash = params.netProfitCash !== undefined
+            ? params.netProfitCash
+            : (netProfitAccounting - vatPayment);
+        const netProfitPl = netProfitAccounting;
+        const netProfitCashWithRefund = netProfitPl - vatPayment + vatRefund;
+        const usesRefundInCash = vatRefund > 0 && Math.abs(netProfitCashWithRefund - netProfitCash) < 0.5;
+        const netProfitCashFormula = usesRefundInCash
+            ? `${fmtMoney(netProfitPl)} − ${fmtMoney(vatPayment)} + ${fmtMoney(vatRefund)} = ${fmtMoney(netProfitCash)} ₽.`
+            : `${fmtMoney(netProfitPl)} − ${fmtMoney(vatPayment)} = ${fmtMoney(netProfitCash)} ₽.`;
         const revenueNet = incomeWithoutVat > 0 ? incomeWithoutVat : Math.max(revenue - vatCharged, 0);
         const profitBase = revenueNet - expensesWithoutVat;
         const positiveProfitBase = Math.max(profitBase, 0);
@@ -106,22 +111,25 @@
             `Итого входящий НДС: ${fmtMoney(vatDeductible)} ₽.`,
         ];
 
-        if (transitionMode === 'vat' && accumulatedVatCredit > 0) {
+        if (extraVatCredit > 0) {
             lines.push(
                 '',
-                `Дополнительный вычет при переходе: накопленный входящий НДС = ${fmtMoney(accumulatedVatCredit)} ₽.`,
+                `Дополнительный вычет при переходе: ${fmtMoney(extraVatCredit)} ₽.`,
             );
         }
+
+        const vatInputTotal = vatDeductible + extraVatCredit;
 
         lines.push(
             '',
             '### 5.3. НДС к уплате',
-            'Расчёт НДС к уплате (баланс):',
-            `${fmtMoney(vatCharged)} − ${fmtMoney(vatDeductible)}${creditPart} = ${fmtMoney(vatPayableBalance)} ₽.`,
+            'Баланс (начисление − вычеты):',
+            `${fmtMoney(vatCharged)} − ${fmtMoney(vatInputTotal)} = ${fmtMoney(vatPayableBalance)} ₽.`,
         );
 
         if (vatPayableBalance < 0 && vatRefund > 0) {
             lines.push(`Получилась сумма к возмещению: ${fmtMoney(vatRefund)} ₽.`);
+            lines.push('Фактический платёж в бюджет: 0 ₽.');
         } else {
             lines.push(`Фактический платёж в бюджет: ${fmtMoney(vatPayment)} ₽.`);
         }
@@ -144,10 +152,10 @@
             '',
             '## 8. Чистая прибыль',
             '- Бухгалтерская (P&L, без учёта НДС к уплате):',
-            `${fmtMoney(revenueNet)} − ${fmtMoney(expensesWithoutVat)} − ${fmtMoney(tax)} = ${fmtMoney(netProfitAccounting)} ₽.`,
+            `${fmtMoney(revenueNet)} − ${fmtMoney(expensesWithoutVat)} − ${fmtMoney(tax)} = ${fmtMoney(netProfitPl)} ₽.`,
             '',
             '- Денежная (cash, с учётом НДС как денежного потока):',
-            `${fmtMoney(netProfitAccounting)} − ${fmtMoney(vatPayableBalance)} = ${fmtMoney(netProfitCash)} ₽.`,
+            netProfitCashFormula,
         );
 
         return renderMarkdown(lines);

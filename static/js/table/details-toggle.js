@@ -210,6 +210,8 @@
         const detailsJson = jsonRegime.details || {};
         const burdenJson = jsonRegime.burden || {};
         const warn = true;
+        const fallbackNetProfitAccounting = (fallback.incomeNoVat || 0) - (fallback.expensesNoVat || 0) - (fallback.tax || 0);
+        const fallbackNetProfitCash = fallback.netProfit !== undefined ? fallback.netProfit : fallbackNetProfitAccounting;
 
         const summary = {
             revenue: readNumber(summaryJson, 'revenue', fallback.revenue, `regime[${regimeId}].summary.revenue`, warn),
@@ -356,6 +358,53 @@
             vatCharged: readNumber(detailsJson, 'vat_charged', fallback.vat, `regime[${regimeId}].details.vat_charged`, warn),
             vatDeductible: readNumber(detailsJson, 'vat_deductible', 0, `regime[${regimeId}].details.vat_deductible`, warn),
             vatExtraCredit: readNumber(detailsJson, 'vat_extra_credit', 0, `regime[${regimeId}].details.vat_extra_credit`, warn),
+            vatPayable: readNumber(detailsJson, 'vat_payable', 0, `regime[${regimeId}].details.vat_payable`, warn),
+            vatRefund: readNumber(detailsJson, 'vat_refund', 0, `regime[${regimeId}].details.vat_refund`, warn),
+            cogsNoVat: readNumber(detailsJson, 'cogs_no_vat', 0, `regime[${regimeId}].details.cogs_no_vat`, warn),
+            rentNoVat: readNumber(detailsJson, 'rent_no_vat', 0, `regime[${regimeId}].details.rent_no_vat`, warn),
+            otherNoVat: readNumber(detailsJson, 'other_no_vat', 0, `regime[${regimeId}].details.other_no_vat`, warn),
+            vatDeductibleCogs: readNumber(
+                detailsJson,
+                'vat_deductible_cogs',
+                0,
+                `regime[${regimeId}].details.vat_deductible_cogs`,
+                warn,
+            ),
+            vatDeductibleRent: readNumber(
+                detailsJson,
+                'vat_deductible_rent',
+                0,
+                `regime[${regimeId}].details.vat_deductible_rent`,
+                warn,
+            ),
+            vatDeductibleOther: readNumber(
+                detailsJson,
+                'vat_deductible_other',
+                0,
+                `regime[${regimeId}].details.vat_deductible_other`,
+                warn,
+            ),
+            netProfitAccounting: readNumber(
+                detailsJson,
+                'net_profit_accounting',
+                fallbackNetProfitAccounting,
+                `regime[${regimeId}].details.net_profit_accounting`,
+                warn,
+            ),
+            netProfitCash: readNumber(
+                detailsJson,
+                'net_profit_cash',
+                fallbackNetProfitCash,
+                `regime[${regimeId}].details.net_profit_cash`,
+                warn,
+            ),
+            totalPayments: readNumber(
+                detailsJson,
+                'total_payments',
+                fallback.totalBurden,
+                `regime[${regimeId}].details.total_payments`,
+                warn,
+            ),
         };
 
         return {

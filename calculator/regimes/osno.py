@@ -77,7 +77,7 @@ def calculate_osno_ooo(data: CalcInput, ctx: CalculationContext) -> CalcResult:
     profit_tax_base = revenue_without_vat - expenses_without_vat
     profit_tax = max(profit_tax_base, 0.0) * PROFIT_TAX_RATE
     net_profit_accounting = profit_tax_base - profit_tax
-    net_profit_cash = net_profit_accounting - vat_payable_balance
+    net_profit_cash = net_profit_accounting - vat_to_pay
 
     insurance = expenses_info["insurance"]
     total_payments = profit_tax + vat_to_pay + insurance
@@ -128,18 +128,27 @@ def calculate_osno_ip(data: CalcInput, ctx: CalculationContext) -> CalcResult:
     income_without_vat = data.revenue - vat_charged
     business_expenses_without_vat = expenses_info["expenses_without_vat"]
 
-    base_for_one_percent = income_without_vat - business_expenses_without_vat - data.fixed_contrib
-    base_for_one_percent = max(base_for_one_percent, 0.0)
-    extra_one_percent = max(base_for_one_percent - THRESHOLD_1_PERCENT, 0.0) * 0.01
+    profit_before_owner_contrib = income_without_vat - business_expenses_without_vat
+    extra_one_percent = max(profit_before_owner_contrib - THRESHOLD_1_PERCENT, 0.0) * 0.01
 
-    ndfl_base = base_for_one_percent - extra_one_percent
+    ndfl_base = (
+        profit_before_owner_contrib
+        - data.fixed_contrib
+        - extra_one_percent
+    )
     ndfl_base = max(ndfl_base, 0.0)
     ndfl_tax = calculate_progressive_ndfl(ndfl_base)
 
-    insurance_total = expenses_info["insurance"] + data.fixed_contrib + extra_one_percent
+    owner_contrib_total = data.fixed_contrib + extra_one_percent
+    insurance_total = expenses_info["insurance"] + owner_contrib_total
     total_tax_burden = ndfl_tax + vat_to_pay + insurance_total
 
-    net_profit_accounting = income_without_vat - business_expenses_without_vat - ndfl_tax
+    net_profit_accounting = (
+        income_without_vat
+        - business_expenses_without_vat
+        - owner_contrib_total
+        - ndfl_tax
+    )
     net_profit_cash = net_profit_accounting - vat_payable_balance
 
     extra = {
@@ -148,7 +157,7 @@ def calculate_osno_ip(data: CalcInput, ctx: CalculationContext) -> CalcResult:
         "expenses_without_vat": business_expenses_without_vat,
         "fixed_contrib": data.fixed_contrib,
         "owner_extra": extra_one_percent,
-        "owner_extra_base": base_for_one_percent,
+        "owner_extra_base": profit_before_owner_contrib,
         "vat_charged": vat_charged,
         "vat_deductible": vat_deductible,
         "vat_extra_credit": ctx.vat_credit_to_apply,

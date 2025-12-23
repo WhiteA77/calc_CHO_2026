@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from calculator.constants import DEFAULT_FIXED_CONTRIB, USN_INCOME_RATE, USN_REDUCTION_LIMIT
+from calculator.constants import DEFAULT_FIXED_CONTRIB, DEFAULT_PATENT_COST, USN_INCOME_RATE, USN_REDUCTION_LIMIT
 from calculator.models import CalcInput, CalculationContext
 from calculator.regimes.usn_income import _calculate_usn_tax
 
@@ -29,6 +29,7 @@ def make_calc_input(**overrides) -> CalcInput:
         "transition_mode": "none",
         "accumulated_vat_credit": 0.0,
         "stock_expense_amount": 0.0,
+        "patent_cost_year": DEFAULT_PATENT_COST,
         "purchases_month_percents": [0.0] * 12,
     }
     data.update(overrides)

@@ -37,6 +37,12 @@
                                value="{{ form_data.fixed_contrib if form_data else '57390' }}">
                     </div>
 
+                    <div class="form-group">
+                        <label for="patent_cost_year">Стоимость патента за год, ₽</label>
+                        <input type="number" id="patent_cost_year" name="patent_cost_year" step="0.01" min="0"
+                               value="{{ form_data.patent_cost_year if form_data else '100000' }}">
+                    </div>
+
                     {% set transition_mode = form_data.transition_mode | default('none') %}
                     <div class="fot-group" style="grid-column: 1 / -1; margin-top: 10px;">
                         <div class="fot-label">Учёт перехода на режим</div>

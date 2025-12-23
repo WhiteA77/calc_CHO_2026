@@ -17,6 +17,15 @@
             </div>
 
             <div class="table-wrapper">
+                <div class="whatif-block">
+                    <div class="whatif-block-title">
+                        Потенциальный расчёт до уровня ПСН (рост цены при неизменных расходах)
+                    </div>
+                    <p class="whatif-block-description">
+                        Колонки справа показывают, на сколько нужно повысить цену/выручку и как изменятся доля себестоимости и маржа,
+                        чтобы чистая прибыль режима догнала прибыль ПСН — за счёт роста цены при неизменных расходах.
+                    </p>
+                </div>
                 <table id="regimes-table"
                     data-cost-of-goods="{{ components.cost_of_goods or 0 }}"
                     data-rent="{{ components.rent or 0 }}"
@@ -43,13 +52,17 @@
                             <th class="number-cell">Налог. нагрузка, ₽</th>
                             <th class="number-cell">Налог. нагрузка, %</th>
                             <th class="number-cell">Чист. прибыль, ₽</th>
+                            <th class="number-cell whatif-column whatif-column-start">+к выручке, %</th>
+                            <th class="number-cell whatif-column">Себестоимость, % → после роста цены</th>
+                            <th class="number-cell whatif-column">Маржа нужна, %</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for regime_name, data, is_available in results %}
+                        {% set is_target = is_available and data and data.regime_id == 'patent' %}
                         <tr
                             {% if is_available and data %}
-                                class="regime-row"
+                                class="regime-row{% if is_target %} target-regime{% endif %}"
                                 data-regime="{{ regime_name }}"
                                 data-regime-id="{{ data.regime_id }}"
                                 data-revenue="{{ data.revenue }}"
@@ -73,10 +86,26 @@
                                 data-ndfl-tax="{{ data.ndfl_tax or data.tax or 0 }}"
                                 data-income-no-vat="{{ data.income_without_vat or 0 }}"
                                 data-expenses-no-vat="{{ data.expenses_without_vat or 0 }}"
+                                data-price-uplift-percent="{{ data.price_uplift_percent if data.price_uplift_percent is not none else '' }}"
+                                data-price-uplift-multiplier="{{ data.price_uplift_multiplier if data.price_uplift_multiplier is not none else '' }}"
+                                data-price-uplift-unattainable="{{ 1 if data.price_uplift_unattainable else 0 }}"
+                                data-gross-margin-current="{{ data.gross_margin_current_percent if data.gross_margin_current_percent is not none else 0 }}"
+                                data-gross-margin-needed="{{ data.gross_margin_needed_percent if data.gross_margin_needed_percent is not none else 0 }}"
+                                data-gross-margin-delta="{{ data.gross_margin_delta_pp if data.gross_margin_delta_pp is not none else 0 }}"
+                                data-cogs-share-current="{{ data.cogs_share_current_percent if data.cogs_share_current_percent is not none else '' }}"
+                                data-cogs-share-after="{{ data.cogs_share_after_uplift_percent if data.cogs_share_after_uplift_percent is not none else '' }}"
                             {% endif %}
                         >
                             <td class="regime-name {% if not is_available %}unavailable{% endif %}">
-                                {{ regime_name }}
+                                <div class="regime-name-main">
+                                    <span>{{ regime_name }}</span>
+                                    {% if is_target %}
+                                        <span class="target-badge">ЦЕЛЬ</span>
+                                    {% endif %}
+                                </div>
+                                {% if is_target %}
+                                    <div class="regime-target-note">целевые показатели ПСН</div>
+                                {% endif %}
                             </td>
                             {% if is_available and data %}
                                 <td class="number-cell">{{ format_number(data.revenue) }}</td>
@@ -89,6 +118,25 @@
                                 <td class="number-cell {% if data.net_profit >= 0 %}positive{% else %}negative{% endif %}">
                                     {{ format_number(data.net_profit) }}
                                 </td>
+                                {% if data.price_uplift_unattainable %}
+                                    <td class="number-cell whatif-column whatif-column-start">н/д</td>
+                                    <td class="number-cell whatif-column">н/д</td>
+                                    <td class="number-cell whatif-column">н/д</td>
+                                {% else %}
+                                    <td class="number-cell whatif-column whatif-column-start">
+                                        {{ "%.2f"|format(data.price_uplift_percent or 0) }}%
+                                    </td>
+                                    <td class="number-cell whatif-column">
+                                        {% if data.cogs_share_current_percent is not none and data.cogs_share_after_uplift_percent is not none %}
+                                            {{ "%.1f"|format(data.cogs_share_current_percent) }}% → {{ "%.1f"|format(data.cogs_share_after_uplift_percent) }}%
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td class="number-cell whatif-column">
+                                        {{ "%.2f"|format(data.gross_margin_needed_percent or 0) }}%
+                                    </td>
+                                {% endif %}
                             {% else %}
                                 <td class="number-cell unavailable">–</td>
                                 <td class="number-cell unavailable">–</td>
@@ -98,12 +146,20 @@
                                 <td class="number-cell unavailable">–</td>
                                 <td class="number-cell unavailable">–</td>
                                 <td class="number-cell unavailable">–</td>
+                                <td class="number-cell unavailable whatif-column whatif-column-start">–</td>
+                                <td class="number-cell unavailable whatif-column">–</td>
+                                <td class="number-cell unavailable whatif-column">–</td>
                             {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            <p class="target-regime-note">
+                Режим <strong>ПСН</strong> закреплён сверху и используется как целевой уровень чистой прибыли
+                для расчёта потенциальных колонок.
+            </p>
 
             <p style="margin-top: 20px; color: #808080; font-size: 13px;">
                 * Страховые взносы рассчитаны как 30% от ФОТ + дополнительный 1% с превышения базы свыше 300 000 ₽ (для режимов «доходы» — с выручки, для «доходы минус расходы» и ОСНО — с прибыли) + фиксированный взнос за ИП, указанный во вводных данных.<br>

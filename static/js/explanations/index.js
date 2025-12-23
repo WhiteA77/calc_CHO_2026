@@ -23,6 +23,7 @@
         usn_profit_vat_22: () => builders.buildUsnDr22Markdown,
         osno_ooo: () => builders.buildOsnoMarkdown,
         osno_ip: () => builders.buildOsnoIpMarkdown,
+        patent: () => builders.buildPatentMarkdown,
     };
 
     const STOCK_ELIGIBLE = new Set([
@@ -31,6 +32,7 @@
         'usn_profit_vat_22',
         'osno_ooo',
         'osno_ip',
+        'patent',
     ]);
 
     function selectBuilder(regime) {
@@ -69,6 +71,7 @@
         const includesIp = normalized.includes('ип') || normalized.includes('ip');
         const isOsnoCompany = hasOsno && includesOoo;
         const isOsnoIp = hasOsno && includesIp;
+        const isPatent = normalized.includes('патент') || normalized.includes('psn') || normalized.includes('псн');
 
         if (isAusn8 && builders.buildAusn8Markdown) {
             return builders.buildAusn8Markdown;
@@ -106,6 +109,9 @@
         if (hasOsno && builders.buildOsnoMarkdown) {
             return builders.buildOsnoMarkdown;
         }
+        if (isPatent && builders.buildPatentMarkdown) {
+            return builders.buildPatentMarkdown;
+        }
         return null;
     }
 
@@ -122,6 +128,8 @@
             && baseStockExtra > 0
             && regime.id
             && STOCK_ELIGIBLE.has(regime.id);
+        const baseInsuranceStd = getNumber(base.insuranceStandard);
+        const fixedContrib = getNumber(insurance.fixedContrib !== undefined ? insurance.fixedContrib : base.fixedContrib);
 
         return {
             revenue: getNumber(summary.revenue),
@@ -153,7 +161,7 @@
             taxReductionLimit: getNumber(
                 details.taxReductionLimit !== undefined ? details.taxReductionLimit : taxes.usnReductionLimit,
             ),
-            fixedContrib: getNumber(insurance.fixedContrib !== undefined ? insurance.fixedContrib : base.fixedContrib),
+            fixedContrib,
             fixedContribReduction: getNumber(details.fixedContribReduction),
             ndflTax: getNumber(details.ndflTax),
             ndflBase: getNumber(details.ndflBase),
@@ -173,6 +181,18 @@
             netProfitAccounting: getNumber(details.netProfitAccounting),
             netProfitCash: getNumber(details.netProfitCash !== undefined ? details.netProfitCash : summary.netProfit),
             totalPayments: getNumber(details.totalPayments),
+            patentCostYear: getNumber(details.patent_cost_year !== undefined ? details.patent_cost_year : summary.tax),
+            patentTaxBeforeDeduction: getNumber(details.tax_before_deduction),
+            patentTaxDeduction: getNumber(details.tax_deduction),
+            patentTaxDeductionLimit: getNumber(details.tax_deduction_limit),
+            patentDeductibleContrib: getNumber(details.deductible_contrib),
+            contribSelf: getNumber(details.contrib_self !== undefined ? details.contrib_self : fixedContrib),
+            contribWorkers: getNumber(details.contrib_workers !== undefined ? details.contrib_workers : baseInsuranceStd),
+            contribSelfExtra: getNumber(details.contrib_self_extra !== undefined ? details.contrib_self_extra : details.owner_extra),
+            contribSelfExtraBase: getNumber(
+                details.contrib_self_extra_base !== undefined ? details.contrib_self_extra_base : details.owner_extra_base,
+            ),
+            hasEmployeesPatentLimit: getNumber(details.has_employees_patent_limit),
         };
     }
 

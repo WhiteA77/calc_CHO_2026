@@ -2,6 +2,7 @@
     const SORT_TAX = 'tax';
     const SORT_PROFIT = 'profit';
     const STORAGE_KEY = 'regimesTableSort';
+    const TARGET_REGIME_ID = 'patent';
     const EPSILON = 1e-9;
 
     function parseNumber(value) {
@@ -25,11 +26,13 @@
         const netProfit = parseNumber(ds.netProfit);
         const titleCell = row.querySelector('.regime-name');
         const title = titleCell ? titleCell.textContent.trim() : (row.dataset.regime || row.dataset.regimeId || '');
+        const regimeId = (ds.regimeId || '').toLowerCase();
         return {
             row,
             burdenPercent,
             netProfit,
             title,
+            isTarget: regimeId === TARGET_REGIME_ID,
         };
     }
 
@@ -64,6 +67,19 @@
     function sortRows(rows, sortKey) {
         const comparator = sortKey === SORT_PROFIT ? comparatorProfit : comparatorTax;
         return rows.slice().sort(comparator);
+    }
+
+    function placeTargetFirst(rows) {
+        const pinned = [];
+        const rest = [];
+        rows.forEach((item) => {
+            if (item.isTarget) {
+                pinned.push(item);
+            } else {
+                rest.push(item);
+            }
+        });
+        return pinned.concat(rest);
     }
 
     function loadPreference(defaultValue) {
@@ -122,7 +138,7 @@
             const nextSort = sortKey === SORT_PROFIT ? SORT_PROFIT : SORT_TAX;
             currentSort = nextSort;
             removeDetailsRows(table);
-            const sorted = sortRows(rowsWithData, currentSort);
+            const sorted = placeTargetFirst(sortRows(rowsWithData, currentSort));
             sorted.forEach((item) => {
                 tbody.appendChild(item.row);
             });

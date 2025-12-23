@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 from flask import Flask, render_template, request
 
 from calculator import CalcInput, run_calculation
-from calculator.constants import DEFAULT_FIXED_CONTRIB, MONTH_KEYS
+from calculator.constants import DEFAULT_FIXED_CONTRIB, DEFAULT_PATENT_COST, MONTH_KEYS
 from calculator.utils import format_number
 
 app = Flask(__name__)
@@ -45,6 +45,7 @@ def build_base_payload(components: Dict[str, Any], calc_input: Optional[CalcInpu
         "has_employees": bool(components.get("has_employees")),
         "insurance_standard": _safe_number(components.get("insurance_standard")),
         "fixed_contrib": _safe_number(components.get("fixed_contrib")),
+        "patent_cost_year": _safe_number(getattr(calc_input, "patent_cost_year", 0.0)),
         "share_with_vat": _safe_number(components.get("vat_purchases_percent")),
         "vat_purchases_percent": _safe_number(components.get("vat_purchases_percent")),
         "vat_share_cogs": _safe_number(cogs_share),
@@ -71,6 +72,14 @@ def build_regime_payload(title: str, payload: Dict[str, Any], components: Dict[s
         "total_burden": _safe_number(payload.get("total_burden")),
         "burden_percent": _safe_number(payload.get("burden_percent")),
         "net_profit": _safe_number(payload.get("net_profit")),
+        "price_uplift_percent": _safe_number(payload.get("price_uplift_percent")),
+        "price_uplift_multiplier": _safe_number(payload.get("price_uplift_multiplier")),
+        "gross_margin_needed_percent": _safe_number(payload.get("gross_margin_needed_percent")),
+        "gross_margin_current_percent": _safe_number(payload.get("gross_margin_current_percent")),
+        "gross_margin_delta_pp": _safe_number(payload.get("gross_margin_delta_pp")),
+        "cogs_share_current_percent": _safe_number(payload.get("cogs_share_current_percent")),
+        "cogs_share_after_uplift_percent": _safe_number(payload.get("cogs_share_after_uplift_percent")),
+        "price_uplift_unattainable": bool(payload.get("price_uplift_unattainable")),
     }
 
     taxes = {
@@ -122,9 +131,27 @@ def build_regime_payload(title: str, payload: Dict[str, Any], components: Dict[s
         "net_profit_accounting",
         "net_profit_cash",
         "total_payments",
+        "tax_before_deduction",
+        "tax_deduction",
+        "tax_deduction_limit",
+        "deductible_contrib",
+        "contrib_self",
+        "contrib_workers",
+        "contrib_self_extra",
+        "contrib_self_extra_base",
+        "price_uplift_percent",
+        "price_uplift_multiplier",
+        "gross_margin_current_percent",
+        "gross_margin_needed_percent",
+        "gross_margin_delta_pp",
+        "cogs_share_current_percent",
+        "cogs_share_after_uplift_percent",
+        "target_profit_patent",
+        "has_employees_patent_limit",
     )
 
     details = {key: _safe_number(payload.get(key)) for key in details_keys}
+    details["price_uplift_unattainable"] = bool(payload.get("price_uplift_unattainable"))
 
     return {
         "id": payload.get("regime_id"),
@@ -174,6 +201,7 @@ def index():
     top_results = None
     components = {}
     fixed_contrib = DEFAULT_FIXED_CONTRIB
+    patent_cost_year = DEFAULT_PATENT_COST
     calc_data = {}
     calc_input: Optional[CalcInput] = None
 
@@ -185,6 +213,7 @@ def index():
             vat_purchases_percent = float(request.form.get("vat_purchases_percent", 0) or 0)
             rent = float(request.form.get("rent", 0) or 0)
             fixed_contrib = float(request.form.get("fixed_contrib", DEFAULT_FIXED_CONTRIB) or 0)
+            patent_cost_year = float(request.form.get("patent_cost_year", DEFAULT_PATENT_COST) or DEFAULT_PATENT_COST)
 
             employees = int(request.form.get("employees", 0) or 0)
             salary = float(request.form.get("salary", 0) or 0)
@@ -223,6 +252,7 @@ def index():
                 or accumulated_vat_credit < 0
                 or stock_expense_amount < 0
                 or fixed_contrib < 0
+                or patent_cost_year < 0
                 or any(p < 0 for p in purchases_month_percents)
             ):
                 error = "Все значения должны быть неотрицательными"
@@ -245,6 +275,7 @@ def index():
                     transition_mode=transition_mode,
                     accumulated_vat_credit=accumulated_vat_credit,
                     stock_expense_amount=stock_expense_amount,
+                    patent_cost_year=patent_cost_year,
                     purchases_month_percents=purchases_month_percents,
                 )
 
@@ -264,6 +295,7 @@ def index():
                     transition_mode=transition_mode,
                     accumulated_vat_credit=accumulated_vat_credit,
                     stock_expense_amount=stock_expense_amount,
+                    patent_cost_year=patent_cost_year,
                     purchases_month_percents=purchases_month_percents,
                 )
 
@@ -279,6 +311,7 @@ def index():
                 "vat_purchases_percent": vat_purchases_percent,
                 "rent": rent,
                 "fixed_contrib": fixed_contrib,
+                "patent_cost_year": patent_cost_year,
                 "employees": employees,
                 "salary": salary,
                 "fot_mode": fot_mode,

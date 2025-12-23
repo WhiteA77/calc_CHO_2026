@@ -21,6 +21,7 @@ class CalcInput:
     transition_mode: str
     accumulated_vat_credit: float
     stock_expense_amount: float
+    patent_cost_year: float
     purchases_month_percents: List[float] = field(default_factory=list)
     vat_share_cogs: Optional[float] = None
     vat_share_rent: Optional[float] = None

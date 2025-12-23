@@ -455,7 +455,7 @@
         return jsonToRegime(jsonRegime, fallback, regimeId);
     }
 
-    function toggleDetails(row, baseComponents, calcData) {
+    function toggleDetails(row, baseComponents, calcData, columnCount) {
         const next = row.nextElementSibling;
         if (next && next.classList.contains('details-row')) {
             next.remove();
@@ -472,7 +472,7 @@
         detailsRow.className = 'details-row';
 
         const cell = document.createElement('td');
-        cell.colSpan = 9;
+        cell.colSpan = columnCount;
         const box = document.createElement('div');
         box.className = 'details-box';
 
@@ -504,9 +504,10 @@
 
         const calcData = getCalcData();
         const baseComponents = buildBaseComponents(table, calcData);
+        const columnCount = table.querySelectorAll('thead th').length || 1;
 
         table.querySelectorAll('tr.regime-row').forEach((row) => {
-            row.addEventListener('click', () => toggleDetails(row, baseComponents, calcData));
+            row.addEventListener('click', () => toggleDetails(row, baseComponents, calcData, columnCount));
         });
     }
 

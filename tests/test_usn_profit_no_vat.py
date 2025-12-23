@@ -8,7 +8,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from calculator import CalcInput
-from calculator.constants import DEFAULT_FIXED_CONTRIB, THRESHOLD_1_PERCENT
+from calculator.constants import DEFAULT_FIXED_CONTRIB, DEFAULT_PATENT_COST, THRESHOLD_1_PERCENT
 from calculator.engine import _build_context
 from calculator.regimes import usn_profit
 
@@ -30,6 +30,7 @@ def make_input(**overrides):
         "transition_mode": "none",
         "accumulated_vat_credit": 0.0,
         "stock_expense_amount": 0.0,
+        "patent_cost_year": DEFAULT_PATENT_COST,
         "purchases_month_percents": [100.0] * 12,
     }
     data.update(overrides)

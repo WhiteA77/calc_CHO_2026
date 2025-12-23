@@ -3,7 +3,7 @@ import pytest
 pytest.importorskip("flask")
 from app import app
 from calculator import CalcInput, run_calculation
-from calculator.constants import DEFAULT_FIXED_CONTRIB
+from calculator.constants import DEFAULT_FIXED_CONTRIB, DEFAULT_PATENT_COST
 
 
 def build_input(**overrides):
@@ -23,6 +23,7 @@ def build_input(**overrides):
         "transition_mode": "none",
         "accumulated_vat_credit": 0.0,
         "stock_expense_amount": 0.0,
+        "patent_cost_year": DEFAULT_PATENT_COST,
         "purchases_month_percents": [100.0] * 12,
     }
     data.update(overrides)
@@ -109,6 +110,7 @@ def test_results_rows_have_regime_ids():
             "transition_mode": "none",
             "accumulated_vat_credit": "0",
             "stock_expense_amount": "0",
+            "patent_cost_year": str(DEFAULT_PATENT_COST),
         },
     )
     assert response.status_code == 200

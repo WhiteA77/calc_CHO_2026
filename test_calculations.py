@@ -7,7 +7,7 @@ from dataclasses import replace
 import pytest
 
 from calculator import CalcInput, run_calculation
-from calculator.constants import DEFAULT_FIXED_CONTRIB, VAT_RATE_STANDARD
+from calculator.constants import DEFAULT_FIXED_CONTRIB, DEFAULT_PATENT_COST, VAT_RATE_STANDARD
 from calculator.utils import format_number
 
 
@@ -30,6 +30,7 @@ def calc_input():
         transition_mode="none",
         accumulated_vat_credit=0.0,
         stock_expense_amount=0.0,
+        patent_cost_year=DEFAULT_PATENT_COST,
         purchases_month_percents=purchases_template,
     )
 
@@ -100,11 +101,11 @@ def test_osno_ooo(results_map):
 
 def test_osno_ip(results_map):
     result = results_map["ОСНО + НДС 22% (ИП)"]
-    assert result["tax"] == pytest.approx(138_709.18568852462)
+    assert result["tax"] == pytest.approx(138_634.5786885246)
     assert result["vat"] == pytest.approx(1_027_868.8524590164)
-    assert result["total_burden"] == pytest.approx(1_771_715.449622951)
-    assert result["net_profit"] == pytest.approx(-34_446.89060655725)
-    assert result["ndfl_base"] == pytest.approx(1_066_993.736065574)
+    assert result["total_burden"] == pytest.approx(1_772_214.7426229508)
+    assert result["net_profit"] == pytest.approx(-100_083.59508196719)
+    assert result["ndfl_base"] == pytest.approx(1_066_419.836065574)
 
 
 def test_format_number():

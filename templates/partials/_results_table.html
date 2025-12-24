@@ -33,6 +33,7 @@
                     data-annual-fot="{{ components.annual_fot or 0 }}"
                     data-insurance-standard="{{ components.insurance_standard or 0 }}"
                     data-fixed-contrib="{{ components.fixed_contrib or 0 }}"
+                    data-patent-cost-year="{{ components.patent_cost_year or 0 }}"
                     data-vat-purchases-percent="{{ components.vat_purchases_percent or 0 }}"
                     data-vat-share-cogs="{{ components.vat_share_cogs if components.vat_share_cogs is not none else ((components.vat_purchases_percent or 0) / 100) }}"
                     data-vat-share-rent="{{ components.vat_share_rent or 1 }}"

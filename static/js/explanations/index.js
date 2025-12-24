@@ -128,8 +128,47 @@
             && baseStockExtra > 0
             && regime.id
             && STOCK_ELIGIBLE.has(regime.id);
-        const baseInsuranceStd = getNumber(base.insuranceStandard);
-        const fixedContrib = getNumber(insurance.fixedContrib !== undefined ? insurance.fixedContrib : base.fixedContrib);
+        const baseInsuranceStd = getNumber(
+            base.insuranceStandard !== undefined
+                ? base.insuranceStandard
+                : base.insurance_standard !== undefined
+                    ? base.insurance_standard
+                    : 0,
+        );
+        const fixedContrib = getNumber(
+            insurance.fixedContrib !== undefined
+                ? insurance.fixedContrib
+                : base.fixedContrib !== undefined
+                    ? base.fixedContrib
+                    : base.fixed_contrib,
+        );
+        const patentCostYearValue = details.patent_cost_year !== undefined
+            ? details.patent_cost_year
+            : base.patentCostYear !== undefined
+                ? base.patentCostYear
+                : base.patent_cost_year !== undefined
+                    ? base.patent_cost_year
+                    : details.tax_before_deduction;
+        const patentCostYear = getNumber(patentCostYearValue);
+        const baseFot = getNumber(
+            base.annualFot !== undefined
+                ? base.annualFot
+                : base.fot !== undefined
+                    ? base.fot
+                    : 0,
+        );
+        const payroll = getNumber(
+            base.payroll !== undefined
+                ? base.payroll
+                : baseFot,
+        );
+        const employeesCount = getNumber(
+            base.employeesCount !== undefined
+                ? base.employeesCount
+                : base.employees !== undefined
+                    ? base.employees
+                    : 0,
+        );
 
         return {
             revenue: getNumber(summary.revenue),
@@ -145,8 +184,8 @@
             baseCost: getNumber(base.costOfGoods),
             baseRent: getNumber(base.rent),
             baseOther: getNumber(base.otherExpenses),
-            baseFot: getNumber(base.annualFot),
-            baseInsurStd: getNumber(base.insuranceStandard),
+            baseFot,
+            baseInsurStd: baseInsuranceStd,
             vatShareCogs: getNumber(base.vatShareCogs),
             vatShareRent: getNumber(base.vatShareRent),
             vatShareOther: getNumber(base.vatShareOther),
@@ -181,10 +220,15 @@
             netProfitAccounting: getNumber(details.netProfitAccounting),
             netProfitCash: getNumber(details.netProfitCash !== undefined ? details.netProfitCash : summary.netProfit),
             totalPayments: getNumber(details.totalPayments),
-            patentCostYear: getNumber(details.patent_cost_year !== undefined ? details.patent_cost_year : summary.tax),
+            patentCostYear,
             patentTaxBeforeDeduction: getNumber(details.tax_before_deduction),
             patentTaxDeduction: getNumber(details.tax_deduction),
             patentTaxDeductionLimit: getNumber(details.tax_deduction_limit),
+            patentTaxPayable: getNumber(details.tax_payable !== undefined ? details.tax_payable : summary.tax),
+            patentPvdPeriod: getNumber(details.patent_pvd_period),
+            patentPvdUsed: getNumber(details.patent_pvd_used),
+            patentPvdAuto: getNumber(details.patent_pvd_auto),
+            patentPvdSource: typeof details.patent_pvd_source === 'string' ? details.patent_pvd_source : '',
             patentDeductibleContrib: getNumber(details.deductible_contrib),
             contribSelf: getNumber(details.contrib_self !== undefined ? details.contrib_self : fixedContrib),
             contribWorkers: getNumber(details.contrib_workers !== undefined ? details.contrib_workers : baseInsuranceStd),
@@ -193,6 +237,8 @@
                 details.contrib_self_extra_base !== undefined ? details.contrib_self_extra_base : details.owner_extra_base,
             ),
             hasEmployeesPatentLimit: getNumber(details.has_employees_patent_limit),
+            payroll,
+            employeesCount,
         };
     }
 

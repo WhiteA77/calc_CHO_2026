@@ -48,6 +48,7 @@
             annualFot: parseNumber(ds.annualFot),
             insuranceStandard: parseNumber(ds.insuranceStandard),
             fixedContrib: parseNumber(ds.fixedContrib),
+            patentCostYear: parseNumber(ds.patentCostYear),
             vatPurchasesPercent: parseNumber(ds.vatPurchasesPercent),
             vatShareCogs: parseNumber(ds.vatShareCogs !== undefined ? ds.vatShareCogs : ds.vatPurchasesPercent),
             vatShareRent: parseNumber(ds.vatShareRent !== undefined ? ds.vatShareRent : '1'),
@@ -105,6 +106,8 @@
         }
         const warn = true;
 
+        const patentCostYear = readNumber(baseJson, 'patent_cost_year', fallback.patentCostYear, 'base.patent_cost_year', warn);
+
         return {
             costOfGoods: readNumber(baseJson, 'cost_of_goods_gross', fallback.costOfGoods, 'base.cost_of_goods', warn),
             rent: readNumber(baseJson, 'rent', fallback.rent, 'base.rent', warn),
@@ -112,6 +115,8 @@
             annualFot: readNumber(baseJson, 'fot', fallback.annualFot, 'base.fot', warn),
             insuranceStandard: readNumber(baseJson, 'insurance_standard', fallback.insuranceStandard, 'base.insurance_standard', warn),
             fixedContrib: readNumber(baseJson, 'fixed_contrib', fallback.fixedContrib, 'base.fixed_contrib', warn),
+            patentCostYear,
+            patent_cost_year: patentCostYear,
             vatPurchasesPercent: readNumber(
                 baseJson,
                 'vat_purchases_percent',

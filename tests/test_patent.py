@@ -8,7 +8,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from calculator import CalcInput
-from calculator.constants import DEFAULT_FIXED_CONTRIB, DEFAULT_PATENT_COST
+from calculator.constants import DEFAULT_FIXED_CONTRIB, DEFAULT_PATENT_COST, THRESHOLD_1_PERCENT
 from calculator.engine import _build_context
 from calculator.regimes import patent
 
@@ -31,6 +31,7 @@ def make_input(**overrides) -> CalcInput:
         "accumulated_vat_credit": 0.0,
         "stock_expense_amount": 0.0,
         "patent_cost_year": DEFAULT_PATENT_COST,
+        "patent_pvd_period": 0.0,
         "purchases_month_percents": [100.0] * 12,
     }
     data.update(overrides)
@@ -41,6 +42,39 @@ def run_patent(calc_input: CalcInput):
     ctx, _ = _build_context(calc_input)
     result = patent.calculate_patent(calc_input, ctx)
     return result, ctx
+
+
+def test_patent_manual_pvd_used_for_owner_extra():
+    manual_pvd = 800_000
+    data = make_input(
+        patent_cost_year=150_000,
+        patent_pvd_period=manual_pvd,
+        fixed_contrib=DEFAULT_FIXED_CONTRIB,
+    )
+    result, _ = run_patent(data)
+
+    expected_base = manual_pvd
+    expected_owner_extra = max(expected_base - THRESHOLD_1_PERCENT, 0) * 0.01
+
+    assert result.extra["patent_pvd_used"] == pytest.approx(expected_base)
+    assert result.extra["owner_extra"] == pytest.approx(expected_owner_extra)
+    assert result.extra["contrib_self"] == pytest.approx(data.fixed_contrib + expected_owner_extra)
+
+
+def test_patent_auto_pvd_used_when_not_provided():
+    patent_cost = 180_000
+    data = make_input(
+        patent_cost_year=patent_cost,
+        patent_pvd_period=0.0,
+    )
+    result, _ = run_patent(data)
+
+    expected_pvd = patent_cost / 0.06
+    expected_owner_extra = max(expected_pvd - THRESHOLD_1_PERCENT, 0) * 0.01
+
+    assert result.extra["patent_pvd_auto"] == 1
+    assert result.extra["patent_pvd_used"] == pytest.approx(expected_pvd)
+    assert result.extra["owner_extra"] == pytest.approx(expected_owner_extra)
 
 
 def test_patent_full_deduction_without_employees():

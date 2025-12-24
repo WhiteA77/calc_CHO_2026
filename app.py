@@ -42,10 +42,16 @@ def build_base_payload(components: Dict[str, Any], calc_input: Optional[CalcInpu
         "rent": _safe_number(components.get("rent")),
         "other_expenses": _safe_number(components.get("other_expenses")),
         "fot": _safe_number(components.get("annual_fot")),
+        "annualFot": _safe_number(components.get("annual_fot")),
+        "payroll": _safe_number(components.get("annual_fot")),
         "has_employees": bool(components.get("has_employees")),
+        "hasEmployees": bool(components.get("has_employees")),
+        "employees": _safe_number(getattr(calc_input, "employees", 0.0)),
+        "employeesCount": _safe_number(getattr(calc_input, "employees", 0.0)),
         "insurance_standard": _safe_number(components.get("insurance_standard")),
         "fixed_contrib": _safe_number(components.get("fixed_contrib")),
         "patent_cost_year": _safe_number(getattr(calc_input, "patent_cost_year", 0.0)),
+        "patent_pvd_period": _safe_number(getattr(calc_input, "patent_pvd_period", 0.0)),
         "share_with_vat": _safe_number(components.get("vat_purchases_percent")),
         "vat_purchases_percent": _safe_number(components.get("vat_purchases_percent")),
         "vat_share_cogs": _safe_number(cogs_share),
@@ -134,6 +140,7 @@ def build_regime_payload(title: str, payload: Dict[str, Any], components: Dict[s
         "tax_before_deduction",
         "tax_deduction",
         "tax_deduction_limit",
+        "tax_payable",
         "deductible_contrib",
         "contrib_self",
         "contrib_workers",
@@ -148,6 +155,10 @@ def build_regime_payload(title: str, payload: Dict[str, Any], components: Dict[s
         "cogs_share_after_uplift_percent",
         "target_profit_patent",
         "has_employees_patent_limit",
+        "patent_cost_year",
+        "patent_pvd_period",
+        "patent_pvd_used",
+        "patent_pvd_auto",
     )
 
     details = {key: _safe_number(payload.get(key)) for key in details_keys}
@@ -202,6 +213,7 @@ def index():
     components = {}
     fixed_contrib = DEFAULT_FIXED_CONTRIB
     patent_cost_year = DEFAULT_PATENT_COST
+    patent_pvd_period = 0.0
     calc_data = {}
     calc_input: Optional[CalcInput] = None
 
@@ -214,6 +226,7 @@ def index():
             rent = float(request.form.get("rent", 0) or 0)
             fixed_contrib = float(request.form.get("fixed_contrib", DEFAULT_FIXED_CONTRIB) or 0)
             patent_cost_year = float(request.form.get("patent_cost_year", DEFAULT_PATENT_COST) or DEFAULT_PATENT_COST)
+            patent_pvd_period = float(request.form.get("patent_pvd_period", 0) or 0)
 
             employees = int(request.form.get("employees", 0) or 0)
             salary = float(request.form.get("salary", 0) or 0)
@@ -253,6 +266,7 @@ def index():
                 or stock_expense_amount < 0
                 or fixed_contrib < 0
                 or patent_cost_year < 0
+                or patent_pvd_period < 0
                 or any(p < 0 for p in purchases_month_percents)
             ):
                 error = "Все значения должны быть неотрицательными"
@@ -277,6 +291,7 @@ def index():
                     stock_expense_amount=stock_expense_amount,
                     patent_cost_year=patent_cost_year,
                     purchases_month_percents=purchases_month_percents,
+                    patent_pvd_period=patent_pvd_period,
                 )
 
                 calc_input = CalcInput(
@@ -297,6 +312,7 @@ def index():
                     stock_expense_amount=stock_expense_amount,
                     patent_cost_year=patent_cost_year,
                     purchases_month_percents=purchases_month_percents,
+                    patent_pvd_period=patent_pvd_period,
                 )
 
                 summary = run_calculation(calc_input)
@@ -312,6 +328,7 @@ def index():
                 "rent": rent,
                 "fixed_contrib": fixed_contrib,
                 "patent_cost_year": patent_cost_year,
+                "patent_pvd_period": patent_pvd_period,
                 "employees": employees,
                 "salary": salary,
                 "fot_mode": fot_mode,
